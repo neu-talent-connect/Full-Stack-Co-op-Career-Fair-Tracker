@@ -28,8 +28,7 @@ export async function GET(
     }
 
     return NextResponse.json(job);
-  } catch (error) {
-    console.error('GET /api/jobs/:id error:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -70,8 +69,7 @@ export async function PUT(
     });
 
     return NextResponse.json(updatedJob);
-  } catch (error) {
-    console.error('PUT /api/jobs/:id error:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -101,8 +99,7 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('DELETE /api/jobs/:id error:', error);
+  } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

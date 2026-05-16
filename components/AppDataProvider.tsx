@@ -91,8 +91,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           companies: [], // Not using companies table for now
         });
       })
-      .catch(err => {
-        console.error('Failed to fetch data:', err);
+      .catch(() => {
         showToast('Failed to load data', 'error');
       })
       .finally(() => setIsApiLoading(false));
@@ -119,7 +118,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         
         return newJob;
       } catch (error) {
-        console.error('Error adding job:', error);
         showToast('Failed to add job', 'error');
         throw error;
       }
@@ -158,8 +156,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           jobs: prev.jobs.map(job => job.id === id ? updatedJob : job),
         }));
-      } catch (error) {
-        console.error('Error updating job:', error);
+      } catch {
         showToast('Failed to update job', 'error');
       }
     } else {
@@ -224,15 +221,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   jobs: [...prev.jobs, restoredJob],
                 }));
                 showToast('Restored!', 'success');
-              } catch (error) {
-                console.error('Error restoring job:', error);
+              } catch {
                 showToast('Failed to restore job', 'error');
               }
             },
           }
         );
-      } catch (error) {
-        console.error('Error deleting job:', error);
+      } catch {
         showToast('Failed to delete job', 'error');
       }
     } else {
@@ -257,7 +252,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             setData(prev => {
               const exists = prev.jobs.some(j => j.id === deletedJob.id);
               if (exists) {
-                console.warn('Job already exists, skipping restore');
                 return prev;
               }
               
@@ -351,7 +345,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         
         return newContact;
       } catch (error) {
-        console.error('Error adding contact:', error);
         showToast('Failed to add contact', 'error');
         throw error;
       }
@@ -387,8 +380,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           contacts: prev.contacts.map(contact => contact.id === id ? updatedContact : contact),
         }));
-      } catch (error) {
-        console.error('Error updating contact:', error);
+      } catch {
         showToast('Failed to update contact', 'error');
       }
     } else {
@@ -447,15 +439,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   contacts: [...prev.contacts, restoredContact],
                 }));
                 showToast('Restored!', 'success');
-              } catch (error) {
-                console.error('Error restoring contact:', error);
+              } catch {
                 showToast('Failed to restore contact', 'error');
               }
             },
           }
         );
-      } catch (error) {
-        console.error('Error deleting contact:', error);
+      } catch {
         showToast('Failed to delete contact', 'error');
       }
     } else {
@@ -507,7 +497,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         
         return newFollowUp;
       } catch (error) {
-        console.error('Error adding follow-up:', error);
         showToast('Failed to add follow-up', 'error');
         throw error;
       }
@@ -543,8 +532,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           followups: prev.followups.map(followup => followup.id === id ? updatedFollowUp : followup),
         }));
-      } catch (error) {
-        console.error('Error updating follow-up:', error);
+      } catch {
         showToast('Failed to update follow-up', 'error');
       }
     } else {
@@ -603,15 +591,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   followups: [...prev.followups, restoredFollowUp],
                 }));
                 showToast('Restored!', 'success');
-              } catch (error) {
-                console.error('Error restoring follow-up:', error);
+              } catch {
                 showToast('Failed to restore follow-up', 'error');
               }
             },
           }
         );
-      } catch (error) {
-        console.error('Error deleting follow-up:', error);
+      } catch {
         showToast('Failed to delete follow-up', 'error');
       }
     } else {
@@ -663,7 +649,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         
         return newInterview;
       } catch (error) {
-        console.error('Error adding interview:', error);
         showToast('Failed to add interview', 'error');
         throw error;
       }
@@ -699,8 +684,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           interviews: prev.interviews.map(interview => interview.id === id ? updatedInterview : interview),
         }));
-      } catch (error) {
-        console.error('Error updating interview:', error);
+      } catch {
         showToast('Failed to update interview', 'error');
       }
     } else {
@@ -759,15 +743,13 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   interviews: [...prev.interviews, restoredInterview],
                 }));
                 showToast('Restored!', 'success');
-              } catch (error) {
-                console.error('Error restoring interview:', error);
+              } catch {
                 showToast('Failed to restore interview', 'error');
               }
             },
           }
         );
-      } catch (error) {
-        console.error('Error deleting interview:', error);
+      } catch {
         showToast('Failed to delete interview', 'error');
       }
     } else {
@@ -867,8 +849,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
         
         showToast(successMessage, 'success');
-      } catch (error) {
-        console.error('Error restoring item:', error);
+      } catch {
         showToast('Failed to restore item', 'error');
       }
     } else {

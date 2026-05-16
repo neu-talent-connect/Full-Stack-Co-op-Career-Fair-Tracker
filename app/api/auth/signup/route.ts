@@ -2,16 +2,17 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 
-// Email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PASSWORD_MIN_LENGTH = 8;
+const PASSWORD_MAX_LENGTH = 128;
+const NAME_MAX_LENGTH = 100;
 
-// Password validation
 function validatePassword(password: string): { valid: boolean; error?: string } {
-  if (password.length < 8) {
-    return { valid: false, error: 'Password must be at least 8 characters long' };
+  if (password.length < PASSWORD_MIN_LENGTH) {
+    return { valid: false, error: `Password must be at least ${PASSWORD_MIN_LENGTH} characters long` };
   }
-  if (password.length > 128) {
-    return { valid: false, error: 'Password must be less than 128 characters' };
+  if (password.length > PASSWORD_MAX_LENGTH) {
+    return { valid: false, error: `Password must be less than ${PASSWORD_MAX_LENGTH} characters` };
   }
   return { valid: true };
 }
@@ -50,9 +51,9 @@ export async function POST(request: Request) {
     }
 
     // Validate name length if provided
-    if (name && name.trim().length > 100) {
+    if (name && name.trim().length > NAME_MAX_LENGTH) {
       return NextResponse.json(
-        { error: 'Name must be less than 100 characters' },
+        { error: `Name must be less than ${NAME_MAX_LENGTH} characters` },
         { status: 400 }
       );
     }
@@ -92,8 +93,7 @@ export async function POST(request: Request) {
       },
       { status: 201 }
     );
-  } catch (error) {
-    console.error('[SIGNUP_ERROR]', error);
+  } catch {
     return NextResponse.json(
       { error: 'An error occurred while creating your account. Please try again.' },
       { status: 500 }

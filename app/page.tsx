@@ -108,10 +108,6 @@ export default function DashboardPage() {
             router.push('/applications');
             setShowGettingStarted(false);
           }}
-          onTakeTour={() => {
-            alert('Interactive tour coming soon! For now, try adding a job or loading sample data.');
-            setShowGettingStarted(false);
-          }}
         />
       )}
 

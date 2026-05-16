@@ -1,20 +1,17 @@
 'use client';
 
-import { Button } from '@/components/ui/Button';
-import { X, Lightbulb, Plus, Upload } from 'lucide-react';
+import { X, Plus, Upload, Lightbulb } from 'lucide-react';
 
 interface GettingStartedBannerProps {
   onDismiss: () => void;
   onLoadSample: () => void;
   onAddFirst: () => void;
-  onTakeTour: () => void;
 }
 
 export function GettingStartedBanner({
   onDismiss,
   onLoadSample,
   onAddFirst,
-  onTakeTour,
 }: GettingStartedBannerProps) {
   return (
     <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-6 mb-6 animate-slide-down">
@@ -43,7 +40,7 @@ export function GettingStartedBanner({
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <button
               onClick={onLoadSample}
               className="flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-northeastern-red dark:hover:border-northeastern-red hover:shadow-md transition-all text-left group"
@@ -78,22 +75,6 @@ export function GettingStartedBanner({
               </div>
             </button>
 
-            <button
-              onClick={onTakeTour}
-              className="flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-northeastern-red dark:hover:border-northeastern-red hover:shadow-md transition-all text-left group"
-            >
-              <div className="flex-shrink-0 w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition-colors">
-                <Lightbulb className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-1">
-                  Take Quick Tour
-                </h4>
-                <p className="text-xs text-gray-600 dark:text-gray-400">
-                  Learn the features (2 min)
-                </p>
-              </div>
-            </button>
           </div>
 
           <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
