@@ -66,6 +66,8 @@ What I changed in this branch
 
 - Added `vercel.json` (simple Next.js build config)
 - Added this `DEPLOYMENT.md` describing steps and env vars
+ - Added a lightweight health-check endpoint at `app/api/health` (responds with JSON `{status: 'ok'}`)
+ - Added a GitHub Actions workflow at `.github/workflows/ci.yml` that installs, generates Prisma client, and builds the app on PRs and pushes to `deploy/vercel` and `main`.
 
 Next steps we can take for you (optional):
 
