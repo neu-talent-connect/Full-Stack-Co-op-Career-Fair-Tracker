@@ -48,6 +48,22 @@ Quick deploy steps
 3. Deploy. Watch logs for `prisma generate` and `next build` steps. If Prisma fails because `DATABASE_URL` is missing, add it and redeploy.
 4. Visit the Preview URL. If you see the maintenance message on `/login` and `/signup` that's expected when `NEXT_PUBLIC_ALLOW_AUTH=false`.
 
+Supabase-specific instructions
+
+1. Create a new project on https://app.supabase.com and note the project region and name.
+2. In the Supabase project, go to Settings → Database → Connection string and copy the primary `Connection string (DATABASE_URL)`.
+3. (Optional) Copy the `Direct URL` if Supabase provides it — this may be used as `DIRECT_URL` in `prisma/schema.prisma` to optimize certain operations.
+4. In your GitHub repository (required for CI migrations): create a repository secret named `DATABASE_URL` with the Supabase connection string. Also add `DIRECT_URL` if you copied it.
+5. In Vercel Project → Settings → Environment Variables: add `DATABASE_URL`, `DIRECT_URL` (if present), `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (`https://<your-app>.vercel.app`), and `NEXT_PUBLIC_ALLOW_AUTH=false` for initial deploy. Add `RESEND_API_KEY` when enabling signup verification.
+6. Run the GitHub Actions workflow `Prisma Migrations` manually (Actions → Prisma Migrations → Run workflow) or merge to `main` (it requires environment approval). This will run migrations (if present) or `prisma db push` to create the schema.
+7. After migrations finish, do a Preview deploy via Vercel (PR) and smoke-test the UI.
+
+Notes about Supabase
+
+- Supabase provides a hosted Postgres database. The connection string usually looks like `postgresql://postgres:password@db.<project>.supabase.co:5432/postgres`.
+- Ensure you copy the full connection string from the Supabase dashboard (not the REST URL).
+- If you need to restrict access, configure the DB network settings and rotate credentials as needed.
+
 Verifying authentication and email delivery
 
 - To enable signup and email verification, set `RESEND_API_KEY` in Vercel and switch `NEXT_PUBLIC_ALLOW_AUTH=true`.
