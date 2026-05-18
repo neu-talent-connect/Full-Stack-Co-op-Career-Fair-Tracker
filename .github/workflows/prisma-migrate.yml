@@ -1,0 +1,44 @@
+name: Prisma Migrations
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [ 'main' ]
+
+jobs:
+  migrate:
+    # Use an environment named `production` so repository admins can require approval
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Ensure DATABASE_URL present
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing DATABASE_URL secret. Set repository secret DATABASE_URL to your Supabase connection string." >&2
+            exit 1
+          fi
+
+      - name: Run migrations or push schema
+        run: |
+          set -e
+          echo "Checking for migrations folder..."
+          if [ -d prisma/migrations ] && [ "$(ls -A prisma/migrations)" ]; then
+            echo "Found migrations — running 'npx prisma migrate deploy'"
+            npx prisma migrate deploy --schema=prisma/schema.prisma
+          else
+            echo "No migrations found — running 'npx prisma db push' to ensure schema exists"
+            npx prisma db push --schema=prisma/schema.prisma
+          fi
