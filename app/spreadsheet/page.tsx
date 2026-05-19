@@ -49,13 +49,6 @@ export default function SpreadsheetPage() {
     }
   };
 
-  const handleStartTour = () => {
-    setShowWelcome(false);
-    localStorage.setItem('hasSeenWelcome', 'true');
-    // TODO: Implement interactive tour
-    alert('Interactive tour coming soon! For now, try adding a job or loading sample data.');
-  };
-
   const handleDismissGettingStarted = () => {
     setShowGettingStarted(false);
     localStorage.setItem('dismissedGettingStarted', 'true');
@@ -129,7 +122,6 @@ export default function SpreadsheetPage() {
       {showWelcome && (
         <WelcomeModal
           onClose={handleWelcomeClose}
-          onStartTour={handleStartTour}
         />
       )}
       
@@ -259,10 +251,6 @@ export default function SpreadsheetPage() {
                 }}
                 onAddFirst={() => {
                   setShowAddPanel(true);
-                  setShowGettingStarted(false);
-                }}
-                onTakeTour={() => {
-                  handleStartTour();
                   setShowGettingStarted(false);
                 }}
               />

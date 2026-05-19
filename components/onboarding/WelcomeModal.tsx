@@ -7,10 +7,9 @@ import { X, ArrowRight, CheckCircle } from 'lucide-react';
 
 interface WelcomeModalProps {
   onClose: () => void;
-  onStartTour: () => void;
 }
 
-export function WelcomeModal({ onClose, onStartTour }: WelcomeModalProps) {
+export function WelcomeModal({ onClose }: WelcomeModalProps) {
   const [step, setStep] = useState(0);
 
   const steps = [
@@ -83,19 +82,6 @@ export function WelcomeModal({ onClose, onStartTour }: WelcomeModalProps) {
               </div>
             </div>
 
-            <div className="flex items-start gap-3 p-4 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-              <div className="flex-shrink-0 w-8 h-8 bg-northeastern-red text-white rounded-full flex items-center justify-center font-bold">
-                3
-              </div>
-              <div>
-                <h4 className="font-semibold text-gray-900 dark:text-white">
-                  Take a Quick Tour
-                </h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Interactive guide showing you the key features (2 minutes)
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       ),
@@ -215,17 +201,9 @@ export function WelcomeModal({ onClose, onStartTour }: WelcomeModalProps) {
               )}
               
               {isLastStep ? (
-                <div className="flex gap-2">
-                  <Button
-                    variant="secondary"
-                    onClick={onStartTour}
-                  >
-                    Take Tour
-                  </Button>
-                  <Button onClick={onClose}>
-                    Get Started
-                  </Button>
-                </div>
+                <Button onClick={onClose}>
+                  Get Started
+                </Button>
               ) : (
                 <Button onClick={() => setStep(step + 1)}>
                   Next
