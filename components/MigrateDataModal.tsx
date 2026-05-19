@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSession } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/Button';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { AppData } from '@/types';
@@ -10,16 +11,30 @@ const STORAGE_KEY = 'careerFairData';
 const MIGRATION_DISMISSED_KEY = 'migrationDismissed';
 
 export function MigrateDataModal() {
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === 'authenticated';
-  
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const isAuthenticated = !!user;
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const [showModal, setShowModal] = useState(false);
   const [localData, setLocalData] = useState<AppData | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (status === 'loading') return;
+    if (authLoading) return;
     if (!isAuthenticated) return;
 
     // Check if migration was already dismissed
@@ -45,7 +60,7 @@ export function MigrateDataModal() {
     } catch (err) {
       console.error('Error checking local data:', err);
     }
-  }, [isAuthenticated, status]);
+  }, [isAuthenticated, authLoading]);
 
   const handleMigrate = async () => {
     if (!localData) return;
@@ -54,41 +69,19 @@ export function MigrateDataModal() {
     setError(null);
 
     try {
-      // Migrate jobs
-      for (const job of localData.jobs || []) {
-        await fetch('/api/jobs', {
+      const post = async (url: string, body: unknown) => {
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(job),
+          body: JSON.stringify(body),
         });
-      }
+        if (!res.ok) throw new Error(`Failed to save to ${url}`);
+      };
 
-      // Migrate contacts
-      for (const contact of localData.contacts || []) {
-        await fetch('/api/contacts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(contact),
-        });
-      }
-
-      // Migrate follow-ups
-      for (const followup of localData.followups || []) {
-        await fetch('/api/followups', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(followup),
-        });
-      }
-
-      // Migrate interviews
-      for (const interview of localData.interviews || []) {
-        await fetch('/api/interviews', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(interview),
-        });
-      }
+      for (const job of localData.jobs || []) await post('/api/jobs', job);
+      for (const contact of localData.contacts || []) await post('/api/contacts', contact);
+      for (const followup of localData.followups || []) await post('/api/followups', followup);
+      for (const interview of localData.interviews || []) await post('/api/interviews', interview);
 
       // Clear local storage after successful migration
       localStorage.removeItem(STORAGE_KEY);

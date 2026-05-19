@@ -4,7 +4,6 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ToastProvider } from "@/components/Toast";
 import { AppDataProvider } from "@/components/AppDataProvider";
-import { SessionProvider } from "@/components/SessionProvider";
 import { MigrateDataModal } from "@/components/MigrateDataModal";
 import { Navigation } from "@/components/Navigation";
 import { FloatingAddButton } from "@/components/FloatingAddButton";
@@ -27,8 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} antialiased`}>
-        <SessionProvider>
-          <ThemeProvider>
+        <ThemeProvider>
             <ToastProvider>
               <AppDataProvider>
                 <MigrateDataModal />
@@ -50,7 +48,6 @@ export default function RootLayout({
               </AppDataProvider>
             </ToastProvider>
           </ThemeProvider>
-        </SessionProvider>
       </body>
     </html>
   );

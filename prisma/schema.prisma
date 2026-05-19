@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,45 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Email verification
-  emailVerified       DateTime?
-  verificationToken   String?   @unique
-  verificationExpiry  DateTime?
-  
-  // Password reset
-  resetToken          String?   @unique
-  resetTokenExpiry    DateTime?
-
-  // Relations
-  jobs      Job[]
-  companies Company[]
-  contacts  Contact[]
-  followups FollowUp[]
-  interviews Interview[]
-}
-
 model Job {
   id               String   @id @default(cuid())
   userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   company          String
   title            String
-  status           String   // JobStatus enum values
-  interest         Int      // 1-5
+  status           String
+  interest         Int
   dateApplied      String?
   deadline         String?
   notes            String?  @db.Text
-  
-  // Advanced fields
+
   jobId            String?
   location         String?
   salary           String?
@@ -57,10 +27,10 @@ model Job {
   contact          String?
   contactEmail     String?
   contactPhone     String?
-  resume           String?  // ResumeVersion enum values
-  coverLetter      String?  // CoverLetterStatus enum values
+  resume           String?
+  coverLetter      String?
   url              String?
-  
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -72,18 +42,17 @@ model Job {
 model Company {
   id          String   @id @default(cuid())
   userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   name        String
   industry    String?
-  interest    Int      // 1-5
+  interest    Int
   booth       String?
   recruiter   String?
   position    String?
-  optFriendly String?  // 'Yes' | 'No' | 'Case-by-case' | ''
+  optFriendly String?
   deadline    String?
   notes       String?  @db.Text
-  
+
   createdAt   DateTime @default(now())
 
   @@index([userId])
@@ -92,20 +61,19 @@ model Company {
 model Contact {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   name      String
   company   String?
   position  String?
   email     String?
   linkedin  String?
   phone     String?
-  type      String   // ConnectionType enum values
-  strength  String   // RelationshipStrength enum values
-  ranking   Int?     // 1-5 rating
+  type      String
+  strength  String
+  ranking   Int?
   isPinned  Boolean? @default(false)
   notes     String?  @db.Text
-  
+
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -115,15 +83,14 @@ model Contact {
 model FollowUp {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   company   String
   contact   String?
-  type      String   // FollowUpType enum values
+  type      String
   dueDate   String
-  priority  String   // Priority enum values
-  status    String   // FollowUpStatus enum values
-  
+  priority  String
+  status    String
+
   createdAt DateTime @default(now())
 
   @@index([userId])
@@ -134,19 +101,18 @@ model FollowUp {
 model Interview {
   id           String   @id @default(cuid())
   userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   jobId        String
   company      String
   position     String
-  type         String   // InterviewType enum values
+  type         String
   date         String
   time         String?
   location     String?
   interviewers String?
   notes        String?  @db.Text
-  status       String   // InterviewStatus enum values
-  
+  status       String
+
   createdAt    DateTime @default(now())
 
   @@index([userId])

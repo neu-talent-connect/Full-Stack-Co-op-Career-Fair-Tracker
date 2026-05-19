@@ -7,7 +7,10 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      return NextResponse.redirect(`${origin}/login?error=Email+link+expired.+Please+sign+in+again.`);
+    }
   }
 
   return NextResponse.redirect(`${origin}/`);
