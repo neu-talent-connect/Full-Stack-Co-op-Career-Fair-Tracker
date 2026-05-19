@@ -93,14 +93,20 @@ Get these from your Supabase project → Settings → Data API (URL + anon key) 
 
 ## Open Tasks
 
-### Remaining cleanup
+### In progress (collaborator)
+
+- **fix/companies-api** — Companies only save to localStorage right now; data is lost on logout. Need `app/api/companies/route.ts`, `app/api/companies/[id]/route.ts`, and AppDataProvider updated to call the API when authenticated. No schema change needed — Company table already exists.
+- **feat/custom-templates** — Resources page has hardcoded templates only. Add `Template` model to schema, full CRUD API, wire into AppDataProvider, add "My Templates" UI in `app/resources/page.tsx`. **Schema change required — do not run `npx prisma db push` without coordinating first.**
+
+### Owner to do
+
+- **Resend** — Wire up custom SMTP for confirmation emails. Supabase's built-in email service has a 2 emails/hour rate limit, not suitable for production. Use Resend: add `RESEND_API_KEY` to `.env` and Vercel, configure in Supabase → Authentication → SMTP Settings.
+- **R1** — Rewrite `README.md` — tagline, screenshot, feature list, tech stack, run-locally steps, live demo link. Do this last.
+
+### Cleanup
 
 - **S1.** Move `check-database.mjs` and `test-backend.mjs` to `scripts/`; update the `db:check` and `test:backend` npm scripts to match.
 - **S3.** Add `lint:fix` and `typecheck` npm scripts; wire `typecheck` into the CI workflow.
-
-### After auth is stable
-
-- **R1.** Rewrite `README.md` — tagline, screenshot, feature list, tech stack, run-locally steps, live demo link. Write this last so it describes the final state.
 
 ### Stretch goals
 
