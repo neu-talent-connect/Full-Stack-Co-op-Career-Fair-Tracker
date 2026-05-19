@@ -1,66 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
-// Check if authentication is enabled
-const AUTH_ENABLED = process.env.NEXT_PUBLIC_ALLOW_AUTH === 'true';
-
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(searchParams.get('error') || '');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // If auth is disabled, show maintenance mode
-  if (!AUTH_ENABLED) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <Card className="w-full max-w-md">
-          <div className="p-8">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 dark:bg-yellow-900 mb-6">
-                <svg
-                  className="h-8 w-8 text-yellow-600 dark:text-yellow-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                Login Temporarily Unavailable
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                We're currently enhancing our authentication and security features to better protect your data.
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-                Login and signup will be available again soon. Thank you for your patience!
-              </p>
-              <Link href="/">
-                <Button className="w-full">
-                  Back to Home
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,25 +34,20 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    try {
-      const result = await signIn('credentials', {
-        email: email.trim(),
-        password,
-        redirect: false,
-      });
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
 
-      if (result?.error) {
-        setError('Invalid email or password');
-        setIsLoading(false);
-        return;
-      }
-
-      router.push('/');
-      router.refresh();
-    } catch (error) {
-      setError('Network error. Please check your connection and try again.');
+    if (error) {
+      setError('Invalid email or password');
       setIsLoading(false);
+      return;
     }
+
+    router.push('/');
+    router.refresh();
   };
 
   return (

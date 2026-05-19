@@ -42,5 +42,6 @@ next-env.d.ts
 *.swo
 *~
 .cursor
+CLAUDE.md
 
 /lib/generated/prisma

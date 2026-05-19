@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
-import { useSession } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
+import type { User } from '@supabase/supabase-js';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useUndo } from '@/hooks/useUndo';
 import { useToast } from '@/components/Toast';
@@ -52,9 +53,24 @@ interface AppDataContextType {
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 
 export function AppDataProvider({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === 'authenticated' && !!session?.user?.id;
-  const isLoading = status === 'loading';
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isAuthenticated = !!user;
+  const isLoading = authLoading;
 
   // For guests: use localStorage
   const [localData, setLocalData] = useLocalStorage<AppData>(STORAGE_KEY, initialData);

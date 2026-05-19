@@ -6,10 +6,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { signIn } from 'next-auth/react';
-
-// Check if authentication is enabled
-const AUTH_ENABLED = process.env.NEXT_PUBLIC_ALLOW_AUTH === 'true';
+import { createClient } from '@/lib/supabase/client';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -20,56 +17,7 @@ export default function SignupPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
-  // If auth is disabled, show maintenance mode
-  if (!AUTH_ENABLED) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <Card className="w-full max-w-md">
-          <div className="p-8">
-            <div className="text-center">
-              <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-yellow-100 dark:bg-yellow-900 mb-6">
-                <svg
-                  className="h-8 w-8 text-yellow-600 dark:text-yellow-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-                  />
-                </svg>
-              </div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                Signups Temporarily Disabled
-              </h1>
-              <p className="text-gray-600 dark:text-gray-400 mb-6">
-                We're currently enhancing our authentication and security features to provide you with the best experience.
-              </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
-                New account creation will be available again soon. Thank you for your interest!
-              </p>
-              <div className="space-y-3">
-                <Link href="/">
-                  <Button className="w-full">
-                    Back to Home
-                  </Button>
-                </Link>
-                <Link href="/login">
-                  <Button variant="secondary" className="w-full">
-                    Existing Users: Login
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </div>
-    );
-  }
+  const [success, setSuccess] = useState(false);
 
   const validateForm = () => {
     // Email validation
@@ -121,48 +69,42 @@ export default function SignupPage() {
 
     setIsLoading(true);
 
-    try {
-      // Create account
-      const response = await fetch('/api/auth/signup', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          name: name.trim() || undefined, 
-          email: email.trim(), 
-          password 
-        }),
-      });
+    const supabase = createClient();
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: { name: name.trim() || undefined },
+      },
+    });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || 'Something went wrong');
-        setIsLoading(false);
-        return;
-      }
-
-      // Auto sign in after signup
-      const result = await signIn('credentials', {
-        email: email.trim(),
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError('Account created but login failed. Please try logging in.');
-        setIsLoading(false);
-        return;
-      }
-
-      router.push('/');
-      router.refresh();
-    } catch (error) {
-      setError('Network error. Please check your connection and try again.');
+    if (error) {
+      setError(error.message || 'Something went wrong');
       setIsLoading(false);
+      return;
     }
+
+    setSuccess(true);
+    setIsLoading(false);
   };
+
+  if (success) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+        <Card className="w-full max-w-md">
+          <div className="p-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Check your email</h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
+            </p>
+            <Link href="/login">
+              <Button variant="secondary" className="w-full">Back to Login</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">

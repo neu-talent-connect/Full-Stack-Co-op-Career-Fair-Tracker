@@ -6,10 +6,12 @@ import { Moon, Sun, BarChart3, Briefcase, Building2, Users, FileText, Table, Key
 import { useTheme } from './ThemeProvider';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { KeyboardShortcutsModal } from './KeyboardShortcutsModal';
 import { useGlobalShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useAppData } from '@/hooks/useAppData';
-import { useSession, signOut } from 'next-auth/react';
+import { createClient } from '@/lib/supabase/client';
+import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 const navItems = [
   { href: '/spreadsheet', label: 'Spreadsheet', icon: BarChart3, featured: true },
@@ -25,9 +27,25 @@ export function Navigation() {
   const { theme, toggleTheme } = useTheme();
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const router = useRouter();
   const { undo } = useAppData();
-  const { data: session, status } = useSession();
-  const isAuthenticated = status === 'authenticated';
+  const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+      setUser(session?.user ?? null);
+      setAuthLoading(false);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const isAuthenticated = !!user;
   
   const shortcuts = useGlobalShortcuts(
     undefined,
@@ -107,18 +125,18 @@ export function Navigation() {
             </button>
 
             {/* Auth Status */}
-            {status === 'loading' ? (
+            {authLoading ? (
               <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-800 animate-pulse" />
             ) : isAuthenticated ? (
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                  title={session?.user?.email || 'Account'}
+                  title={user?.email || 'Account'}
                 >
                   <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:inline">
-                    {session?.user?.name || session?.user?.email?.split('@')[0] || 'Account'}
+                    {user?.user_metadata?.name || user?.email?.split('@')[0] || 'Account'}
                   </span>
                 </button>
                 
@@ -131,16 +149,19 @@ export function Navigation() {
                     <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50 py-2">
                       <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                         <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {session?.user?.name || 'Account'}
+                          {user?.user_metadata?.name || 'Account'}
                         </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                          {session?.user?.email}
+                          {user?.email}
                         </p>
                       </div>
                       <button
-                        onClick={() => {
-                          signOut({ callbackUrl: '/' });
+                        onClick={async () => {
+                          const supabase = createClient();
+                          await supabase.auth.signOut();
                           setShowUserMenu(false);
+                          router.push('/');
+                          router.refresh();
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
                       >
