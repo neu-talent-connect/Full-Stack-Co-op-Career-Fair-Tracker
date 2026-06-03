@@ -25,8 +25,15 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  // Refresh session so it doesn't expire while the user is active
-  await supabase.auth.getUser();
+  // Refresh session — race against a 3 s timeout so a paused/unreachable
+  // Supabase instance causes a graceful degradation (no auth) instead of a
+  // 504 MIDDLEWARE_INVOCATION_TIMEOUT on Vercel.
+  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+  try {
+    await Promise.race([supabase.auth.getUser(), timeout]);
+  } catch {
+    // Supabase unreachable — continue without a refreshed session.
+  }
 
   return supabaseResponse;
 }
