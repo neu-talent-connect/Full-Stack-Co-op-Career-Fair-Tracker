@@ -47,6 +47,8 @@ Supabase Auth handles signup, login, email verification, and session management.
 - `middleware.ts` — refreshes session cookie on every request so users stay logged in
 - `app/auth/callback/route.ts` — handles the email confirmation link, exchanges a one-time code for a session
 
+> **Branch note:** These files exist on `feature/backend-auth`, not yet merged to `main`. The current `main` branch still uses NextAuth v4 + bcryptjs. The merge is blocked — see "Blocked" task below.
+
 ### API routes
 REST-ish handlers under `app/api/`. Every route calls `supabase.auth.getUser()` server-side to get the current user and scopes all queries to `userId` — no user can read or write another user's data.
 
@@ -93,6 +95,12 @@ Get these from your Supabase project → Settings → Data API (URL + anon key) 
 
 ## Open Tasks
 
+### Blocked
+
+- **feature/backend-auth** — Supabase auth migration is complete in code. Blocked on two things before it can merge:
+  1. `prisma db push` failing with P1001 (can't reach DB). Most likely fix: use the **direct connection string** (port 5432), not the pooler (port 6543). Supabase dashboard → Project Settings → Database → Connection string → URI.
+  2. Supabase dashboard config: Authentication → Providers → Email → enable **Confirm email**; Authentication → URL Configuration → add `http://localhost:3000/auth/callback` as a redirect URL.
+
 ### In progress (collaborator)
 
 - **fix/companies-api** — Companies only save to localStorage right now; data is lost on logout. Need `app/api/companies/route.ts`, `app/api/companies/[id]/route.ts`, and AppDataProvider updated to call the API when authenticated. No schema change needed — Company table already exists.
@@ -100,6 +108,7 @@ Get these from your Supabase project → Settings → Data API (URL + anon key) 
 
 ### Owner to do
 
+- **feat/openapi-spec** — Create `docs/openapi.yaml` as an OpenAPI 3.1 spec for all existing API routes. Used as a shared contract for parallel frontend/backend development. Routes are in `app/api/`; use `prisma/schema.prisma` for request/response shapes. New file only — safe to run in parallel with any other task.
 - **Resend** — Wire up custom SMTP for confirmation emails. Supabase's built-in email service has a 2 emails/hour rate limit, not suitable for production. Use Resend: add `RESEND_API_KEY` to `.env` and Vercel, configure in Supabase → Authentication → SMTP Settings.
 - **R1** — Rewrite `README.md` — tagline, screenshot, feature list, tech stack, run-locally steps, live demo link. Do this last.
 
@@ -113,3 +122,27 @@ Get these from your Supabase project → Settings → Data API (URL + anon key) 
 - **X1.** Split `components/AppDataProvider.tsx` into per-entity hooks (`useJobs`, `useContacts`, etc.). The provider then just composes them.
 - **X2.** Add tests — Vitest unit test for signup validation, RTL test for one entity form.
 - **X3.** Build the alumni reverse-search feature: pivot from an alum to every company they've worked at.
+
+---
+
+## Running parallel Claude Code sessions
+
+Use `git worktree` to run multiple agents simultaneously without branch conflicts. Each worktree is a separate folder checked out to its own branch — agents work independently.
+
+```bash
+# Create a worktree for a new task (run from project root)
+git worktree add ../tracker-<task-name> feat/<task-name>
+
+# Open Claude Code in that folder
+cd /Users/apple/Desktop/tracker-<task-name>
+claude
+
+# Clean up after merging
+git worktree remove ../tracker-<task-name>
+```
+
+**Rules for briefing agents:**
+- State which files are **in scope** and which are **off limits** — this prevents merge conflicts
+- Only pick from tasks that touch disjoint files (Cleanup tasks, OpenAPI spec, docs are all safe to parallelize)
+- Tasks that touch `package.json`, `AppDataProvider.tsx`, or API routes should not run simultaneously
+- Update this file after each merge so the next agent has accurate context
