@@ -16,9 +16,9 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 const navItems = [
   { href: '/spreadsheet', label: 'Spreadsheet', icon: BarChart3, featured: true },
   { href: '/', label: 'Dashboard', icon: BarChart3 },
-  { href: '/career-fairs', label: 'Career Fairs', icon: Building2 },
   { href: '/applications', label: 'Add Job', icon: Briefcase },
   { href: '/networking', label: 'Networking', icon: Users },
+  { href: '/career-fairs', label: 'Career Fairs', icon: Building2 },
   { href: '/resources', label: 'Resources', icon: FileText },
 ];
 
@@ -70,17 +70,17 @@ export function Navigation() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo/Brand */}
-          <div className="flex items-center gap-8">
-            <Link href="/" className="flex items-center gap-2 group">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center gap-2 group shrink-0">
               <div className="w-8 h-8 bg-northeastern-red rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
                 <BarChart3 className="w-5 h-5 text-white" />
               </div>
               <div className="flex flex-col">
-                <span className="text-lg font-bold text-gray-900 dark:text-white">
+                <span className="text-lg font-bold text-gray-900 dark:text-white whitespace-nowrap">
                   Career Tracker
                 </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
-                  Professional Edition
+                <span className="text-xs text-gray-500 dark:text-gray-400 -mt-1 whitespace-nowrap">
+                  Northeastern
                 </span>
               </div>
             </Link>
@@ -91,13 +91,13 @@ export function Navigation() {
                 const Icon = item.label === 'Spreadsheet' ? Table : item.icon;
                 const isActive = pathname === item.href;
                 const isFeatured = 'featured' in item && item.featured;
-                
+
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                      'flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all',
                       isActive
                         ? 'bg-northeastern-red text-white shadow-md'
                         : isFeatured
@@ -105,8 +105,8 @@ export function Navigation() {
                         : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                     )}
                   >
-                    <Icon className="w-4 h-4" />
-                    {item.label}
+                    <Icon className="w-4 h-4 shrink-0" />
+                    <span className="hidden lg:inline">{item.label}</span>
                   </Link>
                 );
               })}

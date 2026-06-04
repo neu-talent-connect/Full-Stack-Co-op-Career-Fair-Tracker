@@ -37,8 +37,6 @@ export default function ApplicationsPage() {
     });
     setShowAdvanced(false);
     
-    // Show success message and redirect to dashboard
-    alert('Application added successfully!');
     router.push('/');
   };
 
