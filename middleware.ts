@@ -28,11 +28,38 @@ export async function middleware(request: NextRequest) {
   // Refresh session — race against a 3 s timeout so a paused/unreachable
   // Supabase instance causes a graceful degradation (no auth) instead of a
   // 504 MIDDLEWARE_INVOCATION_TIMEOUT on Vercel.
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+  let user = null;
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
   try {
-    await Promise.race([supabase.auth.getUser(), timeout]);
+    const result = await Promise.race([supabase.auth.getUser(), timeout]);
+    user = result?.data?.user ?? null;
   } catch {
-    // Supabase unreachable — continue without a refreshed session.
+    // Supabase unreachable — treat as signed out.
+  }
+
+  // Gate the app behind login: anyone who is not authenticated is sent to
+  // /login. Auth pages and the email-confirmation callback stay public, and
+  // API routes are left alone so they can return their own 401s.
+  const { pathname } = request.nextUrl;
+  const isPublicPath =
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/auth');
+  const isApiPath = pathname.startsWith('/api');
+
+  if (!user && !isPublicPath && !isApiPath) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/login';
+    redirectUrl.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // If an authenticated user lands on an auth page, send them to the app.
+  if (user && (pathname.startsWith('/login') || pathname.startsWith('/signup'))) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = '/';
+    redirectUrl.search = '';
+    return NextResponse.redirect(redirectUrl);
   }
 
   return supabaseResponse;

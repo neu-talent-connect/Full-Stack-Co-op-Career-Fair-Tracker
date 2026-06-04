@@ -46,7 +46,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push('/');
+    const redirectTo = searchParams.get('redirectTo') || '/';
+    router.push(redirectTo);
     router.refresh();
   };
 
