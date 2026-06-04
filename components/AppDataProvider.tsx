@@ -26,9 +26,9 @@ interface AppDataContextType {
   updateJob: (id: string, updates: Partial<Job>) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
   // Companies
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Company;
-  updateCompany: (id: string, updates: Partial<Company>) => void;
-  deleteCompany: (id: string) => void;
+  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<Company>;
+  updateCompany: (id: string, updates: Partial<Company>) => Promise<void>;
+  deleteCompany: (id: string) => Promise<void>;
   // Contacts
   addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<void>;
@@ -94,17 +94,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     
     Promise.all([
       fetch('/api/jobs').then(r => r.ok ? r.json() : []),
+      fetch('/api/companies').then(r => r.ok ? r.json() : []),
       fetch('/api/contacts').then(r => r.ok ? r.json() : []),
       fetch('/api/followups').then(r => r.ok ? r.json() : []),
       fetch('/api/interviews').then(r => r.ok ? r.json() : []),
     ])
-      .then(([jobs, contacts, followups, interviews]) => {
+      .then(([jobs, companies, contacts, followups, interviews]) => {
         setApiData({
           jobs,
+          companies,
           contacts,
           followups,
           interviews,
-          companies: [], // Not using companies table for now
         });
       })
       .catch(() => {
@@ -284,61 +285,162 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   // Companies CRUD
-  const addCompany = (company: Omit<Company, 'id' | 'createdAt'>) => {
-    const newCompany: Company = {
-      ...company,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    
-    setData(prev => ({
-      ...prev,
-      companies: [...prev.companies, newCompany],
-    }));
-    
-    return newCompany;
+  const addCompany = async (company: Omit<Company, 'id' | 'createdAt'>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(company),
+        });
+
+        if (!response.ok) throw new Error('Failed to create company');
+
+        const newCompany: Company = await response.json();
+        setData(prev => ({
+          ...prev,
+          companies: [...prev.companies, newCompany],
+        }));
+
+        return newCompany;
+      } catch (error) {
+        showToast('Failed to add company', 'error');
+        throw error;
+      }
+    } else {
+      // localStorage mode (guest)
+      const newCompany: Company = {
+        ...company,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+      };
+
+      setData(prev => ({
+        ...prev,
+        companies: [...prev.companies, newCompany],
+      }));
+
+      return newCompany;
+    }
   };
 
-  const updateCompany = (id: string, updates: Partial<Company>) => {
-    setData(prev => ({
-      ...prev,
-      companies: prev.companies.map(company =>
-        company.id === id ? { ...company, ...updates } : company
-      ),
-    }));
+  const updateCompany = async (id: string, updates: Partial<Company>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/companies/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) throw new Error('Failed to update company');
+
+        const updatedCompany: Company = await response.json();
+        setData(prev => ({
+          ...prev,
+          companies: prev.companies.map(company => company.id === id ? updatedCompany : company),
+        }));
+      } catch {
+        showToast('Failed to update company', 'error');
+      }
+    } else {
+      // localStorage mode (guest)
+      setData(prev => ({
+        ...prev,
+        companies: prev.companies.map(company =>
+          company.id === id ? { ...company, ...updates } : company
+        ),
+      }));
+    }
   };
 
-  const deleteCompany = (id: string) => {
+  const deleteCompany = async (id: string) => {
     const company = data.companies.find(c => c.id === id);
     if (!company) return;
 
     const deletedCompany = { ...company };
 
-    addToUndoStack({
-      type: 'company',
-      data: deletedCompany,
-      deletedAt: new Date().toISOString(),
-    });
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/companies/${id}`, {
+          method: 'DELETE',
+        });
 
-    setData(prev => ({
-      ...prev,
-      companies: prev.companies.filter(company => company.id !== id),
-    }));
+        if (!response.ok) throw new Error('Failed to delete company');
 
-    showToast(
-      `Deleted company: ${company.name}`,
-      'success',
-      {
-        label: 'UNDO',
-        onClick: () => {
-          setData(prev => ({
-            ...prev,
-            companies: [...prev.companies, deletedCompany],
-          }));
-          showToast('Restored!', 'success');
-        },
+        setData(prev => ({
+          ...prev,
+          companies: prev.companies.filter(company => company.id !== id),
+        }));
+
+        addToUndoStack({
+          type: 'company',
+          data: deletedCompany,
+          deletedAt: new Date().toISOString(),
+        });
+
+        showToast(
+          `Deleted company: ${company.name}`,
+          'success',
+          {
+            label: 'UNDO',
+            onClick: async () => {
+              // Re-create via API
+              try {
+                const response = await fetch('/api/companies', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(deletedCompany),
+                });
+
+                if (!response.ok) throw new Error('Failed to restore company');
+
+                const restoredCompany = await response.json();
+                setData(prev => ({
+                  ...prev,
+                  companies: [...prev.companies, restoredCompany],
+                }));
+                showToast('Restored!', 'success');
+              } catch {
+                showToast('Failed to restore company', 'error');
+              }
+            },
+          }
+        );
+      } catch {
+        showToast('Failed to delete company', 'error');
       }
-    );
+    } else {
+      // localStorage mode (guest)
+      addToUndoStack({
+        type: 'company',
+        data: deletedCompany,
+        deletedAt: new Date().toISOString(),
+      });
+
+      setData(prev => ({
+        ...prev,
+        companies: prev.companies.filter(company => company.id !== id),
+      }));
+
+      showToast(
+        `Deleted company: ${company.name}`,
+        'success',
+        {
+          label: 'UNDO',
+          onClick: () => {
+            setData(prev => ({
+              ...prev,
+              companies: [...prev.companies, deletedCompany],
+            }));
+            showToast('Restored!', 'success');
+          },
+        }
+      );
+    }
   };
 
   // Contacts CRUD
@@ -821,6 +923,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             endpoint = '/api/jobs';
             successMessage = `Restored ${item.data.company}`;
             break;
+          case 'company':
+            endpoint = '/api/companies';
+            successMessage = `Restored ${item.data.name}`;
+            break;
           case 'contact':
             endpoint = '/api/contacts';
             successMessage = `Restored ${item.data.name}`;
@@ -852,6 +958,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         switch (item.type) {
           case 'job':
             setData(prev => ({ ...prev, jobs: [...prev.jobs, restored] }));
+            break;
+          case 'company':
+            setData(prev => ({ ...prev, companies: [...prev.companies, restored] }));
             break;
           case 'contact':
             setData(prev => ({ ...prev, contacts: [...prev.contacts, restored] }));
