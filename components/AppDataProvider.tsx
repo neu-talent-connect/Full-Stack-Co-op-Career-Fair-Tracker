@@ -6,7 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useUndo } from '@/hooks/useUndo';
 import { useToast } from '@/components/Toast';
-import { AppData, Job, Company, Contact, FollowUp, Interview } from '@/types';
+import { AppData, Job, Company, Contact, FollowUp, Interview, ResearchContact } from '@/types';
 import { generateId } from '@/lib/utils';
 
 const STORAGE_KEY = 'careerFairData';
@@ -17,6 +17,7 @@ const initialData: AppData = {
   jobs: [],
   followups: [],
   interviews: [],
+  researchContacts: [],
 };
 
 interface AppDataContextType {
@@ -41,6 +42,10 @@ interface AppDataContextType {
   addInterview: (interview: Omit<Interview, 'id' | 'createdAt'>) => Promise<Interview>;
   updateInterview: (id: string, updates: Partial<Interview>) => Promise<void>;
   deleteInterview: (id: string) => Promise<void>;
+  // Research contacts
+  addResearchContact: (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => ResearchContact;
+  updateResearchContact: (id: string, updates: Partial<ResearchContact>) => void;
+  deleteResearchContact: (id: string) => void;
   // Bulk
   clearAllData: () => void;
   loadSampleData: () => void;
@@ -105,6 +110,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           followups,
           interviews,
           companies: [], // Not using companies table for now
+          researchContacts: [],
         });
       })
       .catch(() => {
@@ -339,6 +345,36 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         },
       }
     );
+  };
+
+  // Research Contacts CRUD
+  const addResearchContact = (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => {
+    const newContact: ResearchContact = {
+      ...contact,
+      id: generateId(),
+      createdAt: new Date().toISOString(),
+    };
+    setData(prev => ({
+      ...prev,
+      researchContacts: [...(prev.researchContacts ?? []), newContact],
+    }));
+    return newContact;
+  };
+
+  const updateResearchContact = (id: string, updates: Partial<ResearchContact>) => {
+    setData(prev => ({
+      ...prev,
+      researchContacts: (prev.researchContacts ?? []).map(c =>
+        c.id === id ? { ...c, ...updates } : c
+      ),
+    }));
+  };
+
+  const deleteResearchContact = (id: string) => {
+    setData(prev => ({
+      ...prev,
+      researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
+    }));
   };
 
   // Contacts CRUD
@@ -982,8 +1018,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         },
       ],
       interviews: [],
+      researchContacts: [],
     };
-    
+
     setData(sampleData);
   };
 
@@ -1004,6 +1041,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addInterview,
     updateInterview,
     deleteInterview,
+    addResearchContact,
+    updateResearchContact,
+    deleteResearchContact,
     clearAllData,
     loadSampleData,
     undo,
