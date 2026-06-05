@@ -122,6 +122,25 @@ export type InterviewType =
 
 export type InterviewStatus = 'Scheduled' | 'Completed' | 'Cancelled';
 
+export interface ResearchCompany {
+  company: string;
+  position?: string;
+  interest: number; // 0-5
+}
+
+export type OutreachStatus = 'To Reach Out' | 'Reached Out' | 'Waiting for Reply';
+
+export interface ResearchContact {
+  id: string;
+  name: string;
+  linkedin?: string;
+  companies: ResearchCompany[];
+  interest: number; // 0-5 overall
+  outreachStatus: OutreachStatus;
+  notes?: string;
+  createdAt: string;
+}
+
 // Application data structure
 export interface AppData {
   companies: Company[];
@@ -129,6 +148,7 @@ export interface AppData {
   jobs: Job[];
   followups: FollowUp[];
   interviews: Interview[];
+  researchContacts: ResearchContact[];
 }
 
 // Statistics for dashboard
