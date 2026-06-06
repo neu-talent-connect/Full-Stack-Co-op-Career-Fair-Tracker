@@ -52,6 +52,11 @@ export async function PUT(
     // Remove fields that shouldn't be updated
     const { id: bodyId, userId, createdAt, ...updateData } = body;
 
+    // Coerce Prisma Int fields — dropdowns send strings
+    if (updateData.interest !== undefined) {
+      updateData.interest = Number(updateData.interest);
+    }
+
     const job = await prisma.job.updateMany({
       where: {
         id,
