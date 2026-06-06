@@ -52,6 +52,11 @@ export async function PUT(
     // Remove fields that shouldn't be updated
     const { id: bodyId, userId, createdAt, ...updateData } = body;
 
+    // Coerce Prisma Int fields — form inputs send strings
+    if (updateData.ranking !== undefined) {
+      updateData.ranking = updateData.ranking === null ? null : Number(updateData.ranking);
+    }
+
     const contact = await prisma.contact.updateMany({
       where: {
         id,
