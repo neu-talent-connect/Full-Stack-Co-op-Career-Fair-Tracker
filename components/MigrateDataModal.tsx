@@ -47,11 +47,12 @@ export function MigrateDataModal() {
       if (!stored) return;
 
       const data: AppData = JSON.parse(stored);
-      const hasData = 
-        data.jobs?.length > 0 || 
-        data.contacts?.length > 0 || 
-        data.followups?.length > 0 || 
-        data.interviews?.length > 0;
+      const hasData =
+        data.jobs?.length > 0 ||
+        data.contacts?.length > 0 ||
+        data.followups?.length > 0 ||
+        data.interviews?.length > 0 ||
+        data.researchContacts?.length > 0;
 
       if (hasData) {
         setLocalData(data);
@@ -82,6 +83,7 @@ export function MigrateDataModal() {
       for (const contact of localData.contacts || []) await post('/api/contacts', contact);
       for (const followup of localData.followups || []) await post('/api/followups', followup);
       for (const interview of localData.interviews || []) await post('/api/interviews', interview);
+      for (const researchContact of localData.researchContacts || []) await post('/api/research', researchContact);
 
       // Clear local storage after successful migration
       localStorage.removeItem(STORAGE_KEY);
@@ -114,6 +116,7 @@ export function MigrateDataModal() {
   const contactsCount = localData.contacts?.length || 0;
   const followupsCount = localData.followups?.length || 0;
   const interviewsCount = localData.interviews?.length || 0;
+  const researchCount = localData.researchContacts?.length || 0;
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -146,6 +149,7 @@ export function MigrateDataModal() {
             {contactsCount > 0 && <li>• {contactsCount} contact{contactsCount !== 1 ? 's' : ''}</li>}
             {followupsCount > 0 && <li>• {followupsCount} follow-up{followupsCount !== 1 ? 's' : ''}</li>}
             {interviewsCount > 0 && <li>• {interviewsCount} interview{interviewsCount !== 1 ? 's' : ''}</li>}
+            {researchCount > 0 && <li>• {researchCount} research contact{researchCount !== 1 ? 's' : ''}</li>}
           </ul>
         </div>
 
