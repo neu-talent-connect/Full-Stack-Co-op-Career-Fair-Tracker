@@ -247,7 +247,7 @@ describe('DELETE /api/jobs/[id]', () => {
     const req = new Request('http://localhost/api/jobs/job-db-001', { method: 'DELETE' })
     await DELETE(req, { params })
 
-    const deleteCall = vi.mocked(prisma.job.deleteMany).mock.calls[0][0]
+    const deleteCall = vi.mocked(prisma.job.deleteMany).mock.calls[0]![0]!
     expect(deleteCall.where).toMatchObject({ id: 'job-db-001', userId: MOCK_USER.id })
   })
 })
