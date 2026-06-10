@@ -18,7 +18,7 @@ const navItems = [
   { href: '/', label: 'Dashboard', icon: BarChart3 },
   { href: '/applications', label: 'Add Job', icon: Briefcase },
   { href: '/networking', label: 'Networking', icon: Users },
-  { href: '/career-fairs', label: 'Career Fairs', icon: Building2 },
+  { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/resources', label: 'Resources', icon: FileText },
 ];
 

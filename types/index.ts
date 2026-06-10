@@ -37,6 +37,15 @@ export type JobStatus =
 export type ResumeVersion = 'None' | 'Standard' | 'Tailored';
 export type CoverLetterStatus = 'None' | 'Required' | 'Submitted';
 
+export type CompanyStatus =
+  | 'Researching'
+  | 'To Apply'
+  | 'Applied'
+  | 'Interviewing'
+  | 'Offer'
+  | 'Rejected'
+  | '';
+
 export interface Company {
   id: string;
   name: string;
@@ -47,6 +56,9 @@ export interface Company {
   position?: string;
   optFriendly?: 'Yes' | 'No' | 'Case-by-case' | '';
   deadline?: string;
+  website?: string;
+  location?: string;
+  status?: CompanyStatus;
   notes?: string;
   createdAt: string;
 }
