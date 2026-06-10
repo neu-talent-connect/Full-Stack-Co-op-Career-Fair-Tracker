@@ -43,9 +43,9 @@ interface AppDataContextType {
   updateInterview: (id: string, updates: Partial<Interview>) => Promise<void>;
   deleteInterview: (id: string) => Promise<void>;
   // Research contacts
-  addResearchContact: (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => ResearchContact;
-  updateResearchContact: (id: string, updates: Partial<ResearchContact>) => void;
-  deleteResearchContact: (id: string) => void;
+  addResearchContact: (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => Promise<ResearchContact>;
+  updateResearchContact: (id: string, updates: Partial<ResearchContact>) => Promise<void>;
+  deleteResearchContact: (id: string) => Promise<void>;
   // Bulk
   clearAllData: () => void;
   loadSampleData: () => Promise<void>;
@@ -102,15 +102,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       fetch('/api/contacts').then(r => r.ok ? r.json() : []),
       fetch('/api/followups').then(r => r.ok ? r.json() : []),
       fetch('/api/interviews').then(r => r.ok ? r.json() : []),
+      fetch('/api/research').then(r => r.ok ? r.json() : []),
     ])
-      .then(([jobs, contacts, followups, interviews]) => {
+      .then(([jobs, contacts, followups, interviews, researchContacts]) => {
         setApiData({
           jobs,
           contacts,
           followups,
           interviews,
           companies: [], // Not using companies table for now
-          researchContacts: [],
+          researchContacts,
         });
       })
       .catch(() => {
@@ -348,33 +349,101 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   // Research Contacts CRUD
-  const addResearchContact = (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => {
-    const newContact: ResearchContact = {
-      ...contact,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    setData(prev => ({
-      ...prev,
-      researchContacts: [...(prev.researchContacts ?? []), newContact],
-    }));
-    return newContact;
+  const addResearchContact = async (contact: Omit<ResearchContact, 'id' | 'createdAt'>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch('/api/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(contact),
+        });
+
+        if (!response.ok) throw new Error('Failed to create research contact');
+
+        const newContact: ResearchContact = await response.json();
+        setData(prev => ({
+          ...prev,
+          researchContacts: [...(prev.researchContacts ?? []), newContact],
+        }));
+
+        return newContact;
+      } catch (error) {
+        showToast('Failed to add research contact', 'error');
+        throw error;
+      }
+    } else {
+      // localStorage mode (guest)
+      const newContact: ResearchContact = {
+        ...contact,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+      };
+      setData(prev => ({
+        ...prev,
+        researchContacts: [...(prev.researchContacts ?? []), newContact],
+      }));
+      return newContact;
+    }
   };
 
-  const updateResearchContact = (id: string, updates: Partial<ResearchContact>) => {
-    setData(prev => ({
-      ...prev,
-      researchContacts: (prev.researchContacts ?? []).map(c =>
-        c.id === id ? { ...c, ...updates } : c
-      ),
-    }));
+  const updateResearchContact = async (id: string, updates: Partial<ResearchContact>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/research/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) throw new Error('Failed to update research contact');
+
+        const updatedContact: ResearchContact = await response.json();
+        setData(prev => ({
+          ...prev,
+          researchContacts: (prev.researchContacts ?? []).map(c =>
+            c.id === id ? updatedContact : c
+          ),
+        }));
+      } catch {
+        showToast('Failed to update research contact', 'error');
+      }
+    } else {
+      // localStorage mode (guest)
+      setData(prev => ({
+        ...prev,
+        researchContacts: (prev.researchContacts ?? []).map(c =>
+          c.id === id ? { ...c, ...updates } : c
+        ),
+      }));
+    }
   };
 
-  const deleteResearchContact = (id: string) => {
-    setData(prev => ({
-      ...prev,
-      researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
-    }));
+  const deleteResearchContact = async (id: string) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/research/${id}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) throw new Error('Failed to delete research contact');
+
+        setData(prev => ({
+          ...prev,
+          researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
+        }));
+      } catch {
+        showToast('Failed to delete research contact', 'error');
+      }
+    } else {
+      // localStorage mode (guest)
+      setData(prev => ({
+        ...prev,
+        researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
+      }));
+    }
   };
 
   // Contacts CRUD

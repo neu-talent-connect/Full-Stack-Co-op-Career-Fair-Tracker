@@ -98,6 +98,22 @@ model FollowUp {
   @@index([dueDate])
 }
 
+model ResearchContact {
+  id             String   @id @default(cuid())
+  userId         String
+
+  name           String
+  linkedin       String?
+  companies      Json     @default("[]")
+  interest       Int
+  outreachStatus String
+  notes          String?  @db.Text
+
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
 model Interview {
   id           String   @id @default(cuid())
   userId       String
