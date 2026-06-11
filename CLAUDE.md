@@ -74,14 +74,24 @@ npm run db:studio    # open Prisma Studio to browse data
 npx tsc --noEmit     # type check
 ```
 
-**Required `.env` variables:**
+**Required env variables (set in BOTH local `.env` AND Vercel → Settings → Environment Variables):**
 ```
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-DATABASE_URL=
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon/publishable key>
+# Transaction pooler (port 6543) — runtime queries. Append ?pgbouncer=true.
+DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-1-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true
+# Session pooler (port 5432) — used by Prisma ONLY for migrations / db push.
+DIRECT_URL=postgresql://postgres.<ref>:<password>@aws-1-<region>.pooler.supabase.com:5432/postgres
 ```
 
-Get these from your Supabase project → Settings → Data API (URL + anon key) and Connect → Session pooler (DATABASE_URL). Secrets stay in `.env` only — never committed.
+Get the URL + anon key from Supabase → Settings → Data API; get the two connection strings from the **Connect** button (top of dashboard) → ORMs tab. `schema.prisma` declares both: `url = DATABASE_URL` (pooled, app runtime) and `directUrl = DIRECT_URL` (direct, migrations). `.env` is gitignored — never committed; Vercel stores its own copy.
+
+**Gotchas (these have bitten us — read before debugging connection issues):**
+- **Password special characters must be URL-encoded** in the connection string (`!` → `%21`, `@` → `%40`, `#` → `%23`). A literal `!` can cause silent auth failures. Easiest to set a DB password with no URL-special chars.
+- **Wrong password / stale pooler host = P1001 "can't reach" or "authentication failed".** Symptom: every create/update/delete shows "Failed to…". Verify the exact connection string against Supabase → Connect → ORMs. The pooler host changed from `aws-0` to `aws-1` for us.
+- **Use the POOLER host (`...pooler.supabase.com`), not the direct host (`db.<ref>.supabase.co`).** The direct host is IPv6-only; Vercel is IPv4, so the direct host fails in production.
+- **Local dev needs DB ports 5432/6543 open.** University/campus networks (e.g. Northeastern) commonly block outbound Postgres ports → local connections fail with P1001 even when everything is correct. Use a VPN locally. This does NOT affect Vercel or end users (Vercel reaches Supabase from AWS directly).
+- Quick connectivity check: `node -e "..."` with `prisma.$queryRaw\`SELECT 1\`` — distinguishes "can't reach" (network/host) from "authentication failed" (password).
 
 **Supabase dashboard config required:**
 - Authentication → Providers → Email → enable Confirm email
@@ -98,7 +108,7 @@ Get these from your Supabase project → Settings → Data API (URL + anon key) 
 ### Blocked
 
 - **feature/backend-auth** — Supabase auth migration is complete in code. Blocked on two things before it can merge:
-  1. `prisma db push` failing with P1001 (can't reach DB). Most likely fix: use the **direct connection string** (port 5432), not the pooler (port 6543). Supabase dashboard → Project Settings → Database → Connection string → URI.
+  1. ~~`prisma db push` failing with P1001~~ **RESOLVED.** Root cause was a wrong DB password + stale pooler host, compounded by campus networks blocking outbound DB ports. Fix: correct `DATABASE_URL`/`DIRECT_URL` (see env section above) and use a VPN for local migrations. `schema.prisma` now has `directUrl`.
   2. Supabase dashboard config: Authentication → Providers → Email → enable **Confirm email**; Authentication → URL Configuration → add `http://localhost:3000/auth/callback` as a redirect URL.
 
 ### In progress (collaborator)
