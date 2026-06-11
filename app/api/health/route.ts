@@ -12,6 +12,13 @@ function hostOf(url?: string): string | null {
   return m ? m[1] : 'unparseable';
 }
 
+// The query params (e.g. ?pgbouncer=true) — safe to show, no secrets.
+function paramsOf(url?: string): string | null {
+  if (!url) return null;
+  const i = url.indexOf('?');
+  return i === -1 ? '(none)' : url.slice(i + 1);
+}
+
 function firstLines(err: unknown, n = 3): string {
   return String((err as Error)?.message ?? err)
     .split('\n')
@@ -32,16 +39,27 @@ export async function GET() {
     DIRECT_URL: !!process.env.DIRECT_URL,
     // Safe to show — the host is not a secret (the password is, and is omitted).
     DATABASE_URL_host: hostOf(process.env.DATABASE_URL),
+    // Reveals whether ?pgbouncer=true is present (needed for the pooler).
+    DATABASE_URL_params: paramsOf(process.env.DATABASE_URL),
   };
 
-  // 2. Can we actually reach + authenticate to the database?
+  // 2a. Raw connectivity — reaches + authenticates (no prepared statement).
   try {
     await prisma.$queryRaw`SELECT 1`;
     checks.database = { ok: true };
   } catch (e) {
-    // Messages like "Can't reach database server" (network/host) vs
-    // "authentication failed" (password) — exactly what you need to debug.
+    // "Can't reach database server" (network/host) vs
+    // "authentication failed" (password) — tells you which to fix.
     checks.database = { ok: false, error: firstLines(e) };
+  }
+
+  // 2b. Real model query (uses a prepared statement, like create/update/delete).
+  // If this FAILS while 2a PASSES, the pooler URL is missing ?pgbouncer=true.
+  try {
+    const count = await prisma.job.count();
+    checks.modelQuery = { ok: true, jobCount: count };
+  } catch (e) {
+    checks.modelQuery = { ok: false, error: firstLines(e) };
   }
 
   // 3. Is a logged-in user session present on this request?
@@ -55,7 +73,8 @@ export async function GET() {
 
   const envOk = Object.values(checks.env as Record<string, unknown>).every((v) => v !== false);
   const dbOk = (checks.database as { ok: boolean }).ok;
-  const healthy = envOk && dbOk;
+  const modelOk = (checks.modelQuery as { ok: boolean }).ok;
+  const healthy = envOk && dbOk && modelOk;
 
   return NextResponse.json(
     { status: healthy ? 'ok' : 'degraded', ...checks },
