@@ -5,11 +5,14 @@ import { Job, JobStatus } from '@/types';
 import { formatDate, getStatusColor, getInterestDisplay } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Trash2, ExternalLink, Mail, Phone, User, X, Copy } from 'lucide-react';
+import { Trash2, ExternalLink, Mail, Phone, User, X, Copy, Pencil } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
+import { Textarea } from '@/components/ui/Textarea';
 import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { usePositionSuggestions } from '@/hooks/usePositionSuggestions';
+import { getTodayDate } from '@/lib/utils';
 
 interface SpreadsheetTableProps {
   jobs: Job[];
@@ -25,12 +28,24 @@ interface ContactEditData {
   contactPhone: string;
 }
 
+interface JobEditData {
+  company: string;
+  title: string;
+  status: JobStatus;
+  interest: number;
+  deadline: string;
+  contact: string;
+  contactEmail: string;
+  notes: string;
+}
+
 export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRecommendedFields = false }: SpreadsheetTableProps) {
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [notesColumnWidth, setNotesColumnWidth] = useState<number>(250);
   const [isResizing, setIsResizing] = useState(false);
   const [editingContact, setEditingContact] = useState<{ id: string; data: ContactEditData } | null>(null);
+  const [editingJob, setEditingJob] = useState<{ id: string; data: JobEditData } | null>(null);
   const resizeRef = useRef<HTMLDivElement>(null);
   const startXRef = useRef<number>(0);
   const startWidthRef = useRef<number>(250);
@@ -101,6 +116,40 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
       onUpdate(editingContact.id, editingContact.data);
       setEditingContact(null);
     }
+  };
+
+  // Job editing handlers
+  const handleJobEditClick = (job: Job) => {
+    setEditingJob({
+      id: job.id,
+      data: {
+        company: job.company || '',
+        title: job.title || '',
+        status: job.status,
+        interest: job.interest ?? 3,
+        deadline: job.deadline || '',
+        contact: job.contact || '',
+        contactEmail: job.contactEmail || '',
+        notes: job.notes || '',
+      },
+    });
+  };
+
+  const handleJobEditSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingJob) return;
+
+    if (!editingJob.data.company.trim()) {
+      alert('Company name is required');
+      return;
+    }
+
+    if (editingJob.data.title.trim()) {
+      addPosition(editingJob.data.title.trim());
+    }
+
+    onUpdate(editingJob.id, editingJob.data);
+    setEditingJob(null);
   };
 
   // Resize handlers
@@ -458,6 +507,13 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
                         </button>
                       )}
                       <button
+                        onClick={() => handleJobEditClick(job)}
+                        className="text-gray-400 hover:text-northeastern-red transition-colors"
+                        title="Edit application"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
                         onClick={() => onDelete(job.id)}
                         className="text-gray-400 hover:text-red-600 transition-colors"
                         title="Delete application"
@@ -551,6 +607,182 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
             </div>
           </Card>
         </div>
+      )}
+
+      {/* Job Edit Panel */}
+      {editingJob && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 animate-fade-in"
+            onClick={() => setEditingJob(null)}
+          />
+
+          {/* Slide-in Panel */}
+          <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto animate-slide-in-right">
+            <form onSubmit={handleJobEditSave} className="h-full flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Edit Application
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Update the details below
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingJob(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Form Fields */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* Company - REQUIRED */}
+                <div>
+                  <Input
+                    label="Company"
+                    required
+                    placeholder="e.g., Google"
+                    value={editingJob.data.company}
+                    onChange={(e) => setEditingJob({
+                      ...editingJob,
+                      data: { ...editingJob.data, company: e.target.value }
+                    })}
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    * Required field
+                  </p>
+                </div>
+
+                {/* Position - OPTIONAL with Autocomplete */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Position
+                  </label>
+                  <AutocompleteInput
+                    value={editingJob.data.title}
+                    onChange={(value) => setEditingJob({
+                      ...editingJob,
+                      data: { ...editingJob.data, title: value }
+                    })}
+                    suggestions={positions}
+                    placeholder="e.g., Software Engineer (optional)"
+                  />
+                </div>
+
+                {/* Status */}
+                <Select
+                  label="Status"
+                  value={editingJob.data.status}
+                  onChange={(e) => setEditingJob({
+                    ...editingJob,
+                    data: { ...editingJob.data, status: e.target.value as JobStatus }
+                  })}
+                >
+                  <option value="Not Started">Not Started</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Submitted">Submitted</option>
+                  <option value="Under Review">Under Review</option>
+                  <option value="Interview">Interview</option>
+                  <option value="Rejected">Rejected</option>
+                  <option value="Offer">Offer</option>
+                </Select>
+
+                {/* Interest Level */}
+                <Select
+                  label="Interest Level"
+                  value={editingJob.data.interest}
+                  onChange={(e) => setEditingJob({
+                    ...editingJob,
+                    data: { ...editingJob.data, interest: Number(e.target.value) }
+                  })}
+                >
+                  <option value="5">5 ⭐ - Dream Job</option>
+                  <option value="4">4 ⭐ - Very Interested</option>
+                  <option value="3">3 ⭐ - Interested</option>
+                  <option value="2">2 ⭐ - Backup</option>
+                  <option value="1">1 ⭐ - Practice</option>
+                </Select>
+
+                {/* Deadline */}
+                <div>
+                  <Input
+                    label="Deadline"
+                    type="date"
+                    value={editingJob.data.deadline}
+                    onChange={(e) => setEditingJob({
+                      ...editingJob,
+                      data: { ...editingJob.data, deadline: e.target.value }
+                    })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingJob({
+                      ...editingJob,
+                      data: { ...editingJob.data, deadline: getTodayDate() }
+                    })}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline mt-1"
+                  >
+                    Set to today
+                  </button>
+                </div>
+
+                {/* Contact Name */}
+                <Input
+                  label="Contact Name"
+                  placeholder="e.g., Sarah Johnson"
+                  value={editingJob.data.contact}
+                  onChange={(e) => setEditingJob({
+                    ...editingJob,
+                    data: { ...editingJob.data, contact: e.target.value }
+                  })}
+                />
+
+                {/* Contact Email */}
+                <Input
+                  label="Contact Email"
+                  type="email"
+                  placeholder="sarah@company.com"
+                  value={editingJob.data.contactEmail}
+                  onChange={(e) => setEditingJob({
+                    ...editingJob,
+                    data: { ...editingJob.data, contactEmail: e.target.value }
+                  })}
+                />
+
+                {/* Notes */}
+                <Textarea
+                  label="Notes"
+                  placeholder="Any additional notes about this application..."
+                  value={editingJob.data.notes}
+                  onChange={(e) => setEditingJob({
+                    ...editingJob,
+                    data: { ...editingJob.data, notes: e.target.value }
+                  })}
+                  rows={4}
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="p-6 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50">
+                <div className="flex gap-3">
+                  <Button type="submit" className="flex-1">
+                    Save Changes
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => setEditingJob(null)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </>
       )}
     </>
   );
