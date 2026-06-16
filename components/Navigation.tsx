@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Moon, Sun, BarChart3, Briefcase, Building2, Users, FileText, Table, Keyboard, LogIn, UserPlus, LogOut, User } from 'lucide-react';
+import { Moon, Sun, BarChart3, Briefcase, Building2, Users, FileText, Table, Keyboard, LogIn, UserPlus, LogOut, User, Settings } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { cn } from '@/lib/utils';
 import { useState, useEffect } from 'react';
@@ -155,6 +155,14 @@ export function Navigation() {
                           {user?.email}
                         </p>
                       </div>
+                      <Link
+                        href="/account"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Account settings
+                      </Link>
                       <button
                         onClick={async () => {
                           const supabase = createClient();
