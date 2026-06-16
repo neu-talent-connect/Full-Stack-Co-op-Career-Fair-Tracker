@@ -97,6 +97,14 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 - Authentication → Providers → Email → enable Confirm email
 - Authentication → URL Configuration → add your local and Vercel callback URLs (`/auth/callback`)
 
+**Deploying to Vercel (and the "works locally, fails in prod" trap):**
+- **No `vercel.json`.** Modern Next.js (App Router) deploys zero-config — Vercel auto-detects it. We had a stale `vercel.json` with a legacy `builds: @vercel/next` entry and a catch-all `routes` rewrite (`"/(.*)" → "/"`) that broke API route handlers (dynamic `[id]` routes, PUT/DELETE) **on Vercel only** — `npm run dev` ignores `vercel.json`, so local worked fine and hid the bug. Removed it. Do not re-add one without good reason.
+- **Env vars: name + value only, no quotes, no trailing slash/space.** Paste the raw value (e.g. `https://<ref>.supabase.co`, not `"...co/"`). Set for **Production** (and Preview). "Sensitive" is fine — values are still injected at runtime.
+- **Changing an env var does NOT update the running site.** Vercel bakes env vars in at build time. After editing them you MUST **Redeploy** (Deployments → ⋯ → Redeploy).
+- **`?pgbouncer=true` is required on `DATABASE_URL`.** Raw queries (e.g. `SELECT 1`) work without it, but Prisma model ops (create/update/delete) use prepared statements that collide on the transaction pooler without it → writes fail while a health check passes.
+
+**Debugging connection issues: `GET /api/health`** ([app/api/health/route.ts](app/api/health/route.ts)) — open it on any environment (localhost or `<app>.vercel.app/api/health`). Reports which env vars are set, the `DATABASE_URL` host + params (no secrets), a raw DB check, a real model query (`prisma.job.count` — catches the pgbouncer/prepared-statement issue), and auth/session status. Compare localhost (known-good) vs Vercel to pinpoint env drift. The API route `catch` blocks `console.error` the real Prisma error → visible in Vercel → deployment → Runtime Logs.
+
 ## Conventions
 
 - TypeScript `strict` — avoid `any`
