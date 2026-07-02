@@ -40,14 +40,15 @@ The app works in two modes depending on whether a user is logged in:
 `components/AppDataProvider.tsx` is the single React context that manages both modes and exposes the same interface to the rest of the app. When a guest signs up, a migration modal offers to move their local data to their account.
 
 ### Auth flow
-Supabase Auth handles signup, login, email verification, and session management. The key files:
+Supabase Auth handles signup, login, email verification, Google OAuth, and session management. The key files:
 
 - `lib/supabase/client.ts` — browser Supabase client (use in `"use client"` components)
 - `lib/supabase/server.ts` — server Supabase client (use in API routes and Server Components)
 - `middleware.ts` — refreshes session cookie on every request so users stay logged in
-- `app/auth/callback/route.ts` — handles the email confirmation link, exchanges a one-time code for a session
+- `app/auth/callback/route.ts` — exchanges a one-time code for a session; handles BOTH the email-confirmation link and the Google OAuth redirect (same code-exchange path)
+- `components/GoogleSignInButton.tsx` — "Continue with Google" button (`signInWithOAuth`, `redirectTo: <origin>/auth/callback`); rendered on both login and signup
 
-> **Auth status:** Supabase Auth is **merged and live on `main`** — NextAuth/bcryptjs are gone. The above files all exist on `main`. (The old `feature/backend-auth` branch is history.)
+> **Auth status:** Supabase Auth is **live on `main`** (NextAuth/bcryptjs are gone). **Google OAuth is live** — Google Cloud project "jobtracker" (Supabase ref `qokuowykfbgbrkzuzxzg`), consent screen **published to production** (only `email`+`profile` scopes → no Google verification review needed). Email/password signup + guest→account migration also work.
 
 ### API routes
 REST-ish handlers under `app/api/`. Every route calls `supabase.auth.getUser()` server-side to get the current user and scopes all queries to `userId` — no user can read or write another user's data. Request bodies are validated with zod (`lib/validation.ts`): each entity has a create/update schema that whitelists known columns, coerces int fields, and returns `400` with per-field messages on bad input (Prisma is no longer the only gatekeeper). All route `catch` blocks `console.error` the underlying error for prod log visibility.
@@ -92,10 +93,12 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 - **Use the POOLER host (`...pooler.supabase.com`), not the direct host (`db.<ref>.supabase.co`).** The direct host is IPv6-only; Vercel is IPv4, so the direct host fails in production.
 - **Local dev needs DB ports 5432/6543 open.** University/campus networks (e.g. Northeastern) commonly block outbound Postgres ports → local connections fail with P1001 even when everything is correct. Use a VPN locally. This does NOT affect Vercel or end users (Vercel reaches Supabase from AWS directly).
 - Quick connectivity check: `node -e "..."` with `prisma.$queryRaw\`SELECT 1\`` — distinguishes "can't reach" (network/host) from "authentication failed" (password).
+- **Schema drift = `P2022` "column X does not exist" → route 500s.** If a model in `schema.prisma` has columns the actual DB table lacks (someone edited the schema but never ran `db push`), any `findMany`/`create` that touches the missing column throws P2022 and the route 500s. It bit us on `Company` (DB was missing `website`/`location`/`status`). Gotcha within the gotcha: **`count()` and a health check pass anyway** because they don't select those columns — so the DB looks healthy while reads fail. Fix: `npm run db:push` (on VPN if on campus). Diagnose fast by running `prisma.<model>.findMany({ take: 1 })` per model in a `node --env-file=.env` script — a clean way to catch drift across every table. **Rule: after ANY `schema.prisma` edit, run `db:push` before relying on it.**
 
 **Supabase dashboard config required:**
 - Authentication → Providers → Email → enable Confirm email
-- Authentication → URL Configuration → add your local and Vercel callback URLs (`/auth/callback`)
+- Authentication → URL Configuration → Site URL + Redirect URLs must include local and Vercel (`http://localhost:3000/**`, `https://career--tracker.vercel.app/**`) — a `redirectTo` not on this allowlist is rejected
+- Authentication → Providers → **Google** → enabled, with Client ID/Secret from Google Cloud (project "jobtracker"). Google's authorized redirect URI = the Supabase callback shown in that panel (`https://<ref>.supabase.co/auth/v1/callback`). In Google's new "Google Auth Platform" UI: **Branding** = app info, **Audience** = user type (External) + test users + Publish, **Clients** = the OAuth client. Consent screen is **published** (public); with only `email`+`profile` scopes no verification review is needed.
 
 **Deploying to Vercel (and the "works locally, fails in prod" trap):**
 - **No `vercel.json`.** Modern Next.js (App Router) deploys zero-config — Vercel auto-detects it. We had a stale `vercel.json` with a legacy `builds: @vercel/next` entry and a catch-all `routes` rewrite (`"/(.*)" → "/"`) that broke API route handlers (dynamic `[id]` routes, PUT/DELETE) **on Vercel only** — `npm run dev` ignores `vercel.json`, so local worked fine and hid the bug. Removed it. Do not re-add one without good reason.
@@ -115,8 +118,10 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 
 ### Recently done (2026-07-02, backend integrity pass)
 
-- **fix/companies-api** — ✅ DONE. Companies now persist for authenticated users. Added `app/api/companies/route.ts` + `[id]/route.ts` and wired `AppDataProvider` (fetch on load, API-backed add/update/delete with undo). Migration now includes companies.
+- **fix/companies-api** — ✅ DONE. Companies now persist for authenticated users. Added `app/api/companies/route.ts` + `[id]/route.ts` and wired `AppDataProvider` (fetch on load, API-backed add/update/delete with undo). Migration now includes companies. **NB:** required a `db push` — the live `Company` table was missing `website`/`location`/`status` (see schema-drift gotcha above).
 - **Backend hardening** — ✅ zod validation on every POST/PUT (`lib/validation.ts`), `console.error` in all route catches, un-scoped `findUnique`-after-update replaced with user-scoped `findFirst`, `followups/[id]` PUT now returns 401 (was 404) when unauthenticated. Provider surfaces per-entity fetch failures instead of rendering empty, and resets in-memory data + the `migrationDismissed` flag on sign-out. Migration is now per-record and idempotent (keeps only unmigrated records on partial failure; two-step confirm on Discard).
+- **Google OAuth** — ✅ DONE & live. `components/GoogleSignInButton.tsx` on login + signup; Google Cloud + Supabase configured, consent screen published. See Auth flow section.
+- **UX/a11y pass** — ✅ form primitives (`Input`/`Select`/`Textarea`) now associate labels via `useId` (`htmlFor`/`id`); password-toggle a11y; dismissible guest-mode banner (`components/GuestModeBanner.tsx`); add-job labels unified to "Add Application".
 
 ### In progress (collaborator)
 
@@ -125,7 +130,7 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 ### Owner to do
 
 - **feat/openapi-spec** — Create `docs/openapi.yaml` as an OpenAPI 3.1 spec for all existing API routes. Used as a shared contract for parallel frontend/backend development. Routes are in `app/api/`; use `prisma/schema.prisma` for request/response shapes. New file only — safe to run in parallel with any other task.
-- **Resend** — Wire up custom SMTP for confirmation emails. Supabase's built-in email service has a 2 emails/hour rate limit, not suitable for production. Use Resend: add `RESEND_API_KEY` to `.env` and Vercel, configure in Supabase → Authentication → SMTP Settings.
+- **Password reset + email provider** — Not built yet. Add forgot-password (`resetPasswordForEmail`) + update-password pages, and a "resend confirmation" affordance. Needs real email: Supabase's built-in sender is capped ~2/hour. **Use Brevo, not Resend** — the owner has no domain, and Brevo's free tier (300/day, no credit card) sends to arbitrary Gmail/Outlook via SMTP *without* domain verification; Resend requires a DNS-verified domain before it will email real users. Configure in Supabase → Authentication → SMTP Settings. (OAuth users skip email entirely, so this only matters for the password path.)
 - **R1** — Rewrite `README.md` — tagline, screenshot, feature list, tech stack, run-locally steps, live demo link. Do this last.
 
 ### Cleanup
