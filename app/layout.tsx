@@ -6,6 +6,7 @@ import { ToastProvider } from "@/components/Toast";
 import { AppDataProvider } from "@/components/AppDataProvider";
 import { MigrateDataModal } from "@/components/MigrateDataModal";
 import { Navigation } from "@/components/Navigation";
+import { GuestModeBanner } from "@/components/GuestModeBanner";
 import { FloatingAddButton } from "@/components/FloatingAddButton";
 
 const inter = Inter({ 
@@ -32,6 +33,7 @@ export default function RootLayout({
                 <MigrateDataModal />
                 <div className="min-h-screen flex flex-col">
                   <Navigation />
+                  <GuestModeBanner />
                   <main className="flex-1">
                     {children}
                   </main>

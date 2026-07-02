@@ -189,7 +189,7 @@ export default function SpreadsheetPage() {
               onClick={() => setShowAddPanel(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
-              Add Row
+              Add Application
             </Button>
           </div>
         </div>

@@ -67,7 +67,7 @@ export function GettingStartedBanner({
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-sm text-gray-900 dark:text-white mb-1">
-                  Add First Job
+                  Add First Application
                 </h4>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Start tracking your applications

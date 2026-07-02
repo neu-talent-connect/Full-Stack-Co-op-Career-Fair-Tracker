@@ -42,13 +42,13 @@ export function FloatingAddButton() {
         className={`fixed bottom-6 right-6 z-30 w-14 h-14 bg-northeastern-red hover:bg-red-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center group ${
           isOpen ? 'rotate-45' : ''
         }`}
-        title="Add new job (Ctrl+N)"
+        title="Add new application (Ctrl+N)"
       >
         <Plus className="w-6 h-6" />
         
         {/* Tooltip */}
         <span className="absolute right-16 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Add Job (Ctrl+N)
+          Add Application (Ctrl+N)
         </span>
       </button>
 

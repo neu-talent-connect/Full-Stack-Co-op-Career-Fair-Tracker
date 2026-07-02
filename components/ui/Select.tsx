@@ -1,4 +1,4 @@
-import { SelectHTMLAttributes, forwardRef } from 'react';
+import { SelectHTMLAttributes, forwardRef, useId } from 'react';
 import { cn } from '@/lib/utils';
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -7,16 +7,19 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
-  ({ className, label, error, children, ...props }, ref) => {
+  ({ className, label, error, id, children, ...props }, ref) => {
+    const generatedId = useId();
+    const selectId = id ?? generatedId;
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+          <label htmlFor={selectId} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
             {label}
             {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
         <select
+          id={selectId}
           ref={ref}
           className={cn(
             'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600',

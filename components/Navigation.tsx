@@ -16,7 +16,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js';
 const navItems = [
   { href: '/spreadsheet', label: 'Spreadsheet', icon: BarChart3, featured: true },
   { href: '/', label: 'Dashboard', icon: BarChart3 },
-  { href: '/applications', label: 'Add Job', icon: Briefcase },
+  { href: '/applications', label: 'Add Application', icon: Briefcase },
   { href: '/networking', label: 'Networking', icon: Users },
   { href: '/companies', label: 'Companies', icon: Building2 },
   { href: '/resources', label: 'Resources', icon: FileText },

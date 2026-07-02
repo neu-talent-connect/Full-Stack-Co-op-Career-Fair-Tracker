@@ -55,7 +55,7 @@ export default function ApplicationsPage() {
       {/* Header */}
       <div className="mb-8 animate-fade-in">
         <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-          Add Job Application
+          Add Application
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
           Add detailed job applications here. They'll appear in the Dashboard spreadsheet.

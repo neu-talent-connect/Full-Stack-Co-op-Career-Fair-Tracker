@@ -79,7 +79,7 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Add New Application
+                Add Application
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Fill in the details below
