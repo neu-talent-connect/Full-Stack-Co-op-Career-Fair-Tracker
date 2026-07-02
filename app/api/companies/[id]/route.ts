@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
-import { validateBody, researchUpdateSchema } from '@/lib/validation';
+import { validateBody, companyUpdateSchema } from '@/lib/validation';
 
-// GET /api/research/:id - Get a single research contact
+// GET /api/companies/:id - Get a single company
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -17,25 +17,22 @@ export async function GET(
     }
 
     const { id } = await params;
-    const researchContact = await prisma.researchContact.findFirst({
-      where: {
-        id,
-        userId: user.id,
-      },
+    const company = await prisma.company.findFirst({
+      where: { id, userId: user.id },
     });
 
-    if (!researchContact) {
-      return NextResponse.json({ error: 'Research contact not found' }, { status: 404 });
+    if (!company) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
 
-    return NextResponse.json(researchContact);
+    return NextResponse.json(company);
   } catch (e) {
-    console.error('GET /api/research/[id] failed:', e);
+    console.error('GET /api/companies/[id] failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// PUT /api/research/:id - Update a research contact
+// PUT /api/companies/:id - Update a company
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -50,34 +47,30 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json().catch(() => null);
-    const parsed = validateBody(researchUpdateSchema, body);
+    const parsed = validateBody(companyUpdateSchema, body);
     if (!parsed.success) return parsed.response;
 
-    const researchContact = await prisma.researchContact.updateMany({
-      where: {
-        id,
-        userId: user.id,
-      },
+    const company = await prisma.company.updateMany({
+      where: { id, userId: user.id },
       data: parsed.data,
     });
 
-    if (researchContact.count === 0) {
-      return NextResponse.json({ error: 'Research contact not found' }, { status: 404 });
+    if (company.count === 0) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
 
-    // Fetch the updated research contact (scoped to the user)
-    const updatedContact = await prisma.researchContact.findFirst({
+    const updatedCompany = await prisma.company.findFirst({
       where: { id, userId: user.id },
     });
 
-    return NextResponse.json(updatedContact);
+    return NextResponse.json(updatedCompany);
   } catch (e) {
-    console.error('PUT /api/research/[id] failed:', e);
+    console.error('PUT /api/companies/[id] failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// DELETE /api/research/:id - Delete a research contact
+// DELETE /api/companies/:id - Delete a company
 export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -91,20 +84,17 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const researchContact = await prisma.researchContact.deleteMany({
-      where: {
-        id,
-        userId: user.id,
-      },
+    const company = await prisma.company.deleteMany({
+      where: { id, userId: user.id },
     });
 
-    if (researchContact.count === 0) {
-      return NextResponse.json({ error: 'Research contact not found' }, { status: 404 });
+    if (company.count === 0) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (e) {
-    console.error('DELETE /api/research/[id] failed:', e);
+    console.error('DELETE /api/companies/[id] failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

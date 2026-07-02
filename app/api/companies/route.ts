@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
-import { validateBody, researchCreateSchema } from '@/lib/validation';
+import { validateBody, companyCreateSchema } from '@/lib/validation';
 
-// GET /api/research - Get all research contacts for authenticated user
+// GET /api/companies - Get all companies for authenticated user
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -13,19 +13,19 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const researchContacts = await prisma.researchContact.findMany({
+    const companies = await prisma.company.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: 'desc' },
     });
 
-    return NextResponse.json(researchContacts);
+    return NextResponse.json(companies);
   } catch (e) {
-    console.error('GET /api/research failed:', e);
+    console.error('GET /api/companies failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST /api/research - Create a new research contact
+// POST /api/companies - Create a new company
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -36,19 +36,19 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json().catch(() => null);
-    const parsed = validateBody(researchCreateSchema, body);
+    const parsed = validateBody(companyCreateSchema, body);
     if (!parsed.success) return parsed.response;
 
-    const researchContact = await prisma.researchContact.create({
+    const company = await prisma.company.create({
       data: {
         ...parsed.data,
         userId: user.id,
       },
     });
 
-    return NextResponse.json(researchContact, { status: 201 });
+    return NextResponse.json(company, { status: 201 });
   } catch (e) {
-    console.error('POST /api/research failed:', e);
+    console.error('POST /api/companies failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

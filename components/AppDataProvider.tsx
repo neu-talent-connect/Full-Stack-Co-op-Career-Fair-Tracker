@@ -10,6 +10,7 @@ import { AppData, Job, Company, Contact, FollowUp, Interview, ResearchContact } 
 import { generateId } from '@/lib/utils';
 
 const STORAGE_KEY = 'careerFairData';
+const MIGRATION_DISMISSED_KEY = 'migrationDismissed';
 
 const initialData: AppData = {
   companies: [],
@@ -27,9 +28,9 @@ interface AppDataContextType {
   updateJob: (id: string, updates: Partial<Job>) => Promise<void>;
   deleteJob: (id: string) => Promise<void>;
   // Companies
-  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Company;
-  updateCompany: (id: string, updates: Partial<Company>) => void;
-  deleteCompany: (id: string) => void;
+  addCompany: (company: Omit<Company, 'id' | 'createdAt'>) => Promise<Company>;
+  updateCompany: (id: string, updates: Partial<Company>) => Promise<void>;
+  deleteCompany: (id: string) => Promise<void>;
   // Contacts
   addContact: (contact: Omit<Contact, 'id' | 'createdAt'>) => Promise<Contact>;
   updateContact: (id: string, updates: Partial<Contact>) => Promise<void>;
@@ -67,9 +68,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       setUser(user);
       setAuthLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
+      // On sign-out, drop the previous user's in-memory data and clear the
+      // migration flag so the next guest on this browser is offered migration.
+      if (event === 'SIGNED_OUT') {
+        setApiData(initialData);
+        try {
+          localStorage.removeItem(MIGRATION_DISMISSED_KEY);
+        } catch {
+          // localStorage may be unavailable (SSR/private mode) — safe to ignore
+        }
+      }
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -91,33 +102,64 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const { addToUndoStack, popFromUndoStack, canUndo, undoCount } = useUndo();
   const { showToast } = useToast();
 
-  // Fetch data from API on mount if authenticated
+  // Fetch data from API on mount if authenticated.
+  // Each entity loads independently: a failed/transient fetch surfaces a clear
+  // error instead of silently rendering that entity empty (which reads as data
+  // loss). Successfully-loaded entities still populate.
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
 
+    let cancelled = false;
     setIsApiLoading(true);
-    
-    Promise.all([
-      fetch('/api/jobs').then(r => r.ok ? r.json() : []),
-      fetch('/api/contacts').then(r => r.ok ? r.json() : []),
-      fetch('/api/followups').then(r => r.ok ? r.json() : []),
-      fetch('/api/interviews').then(r => r.ok ? r.json() : []),
-      fetch('/api/research').then(r => r.ok ? r.json() : []),
-    ])
-      .then(([jobs, contacts, followups, interviews, researchContacts]) => {
-        setApiData({
-          jobs,
-          contacts,
-          followups,
-          interviews,
-          companies: [], // Not using companies table for now
-          researchContacts,
+
+    const endpoints: { key: keyof AppData; label: string; url: string }[] = [
+      { key: 'jobs', label: 'jobs', url: '/api/jobs' },
+      { key: 'contacts', label: 'contacts', url: '/api/contacts' },
+      { key: 'followups', label: 'follow-ups', url: '/api/followups' },
+      { key: 'interviews', label: 'interviews', url: '/api/interviews' },
+      { key: 'researchContacts', label: 'research contacts', url: '/api/research' },
+      { key: 'companies', label: 'companies', url: '/api/companies' },
+    ];
+
+    Promise.allSettled(
+      endpoints.map(async ({ url }) => {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`${url} responded ${r.status}`);
+        return r.json();
+      })
+    )
+      .then((results) => {
+        if (cancelled) return;
+
+        const next: AppData = { ...initialData };
+        const failed: string[] = [];
+
+        results.forEach((result, i) => {
+          const { key, label } = endpoints[i];
+          if (result.status === 'fulfilled') {
+            next[key] = result.value;
+          } else {
+            failed.push(label);
+            console.error(`Failed to load ${label}:`, result.reason);
+          }
         });
+
+        setApiData(next);
+
+        if (failed.length > 0) {
+          showToast(
+            `Couldn't load: ${failed.join(', ')}. Please refresh to try again.`,
+            'error'
+          );
+        }
       })
-      .catch(() => {
-        showToast('Failed to load data', 'error');
-      })
-      .finally(() => setIsApiLoading(false));
+      .finally(() => {
+        if (!cancelled) setIsApiLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [isAuthenticated, isLoading]);
 
   // Jobs CRUD
@@ -291,61 +333,161 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   // Companies CRUD
-  const addCompany = (company: Omit<Company, 'id' | 'createdAt'>) => {
-    const newCompany: Company = {
-      ...company,
-      id: generateId(),
-      createdAt: new Date().toISOString(),
-    };
-    
-    setData(prev => ({
-      ...prev,
-      companies: [...prev.companies, newCompany],
-    }));
-    
-    return newCompany;
+  const addCompany = async (company: Omit<Company, 'id' | 'createdAt'>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(company),
+        });
+
+        if (!response.ok) throw new Error('Failed to create company');
+
+        const newCompany: Company = await response.json();
+        setData(prev => ({
+          ...prev,
+          companies: [...prev.companies, newCompany],
+        }));
+
+        return newCompany;
+      } catch (error) {
+        showToast('Failed to add company', 'error');
+        throw error;
+      }
+    } else {
+      // localStorage mode (guest)
+      const newCompany: Company = {
+        ...company,
+        id: generateId(),
+        createdAt: new Date().toISOString(),
+      };
+
+      setData(prev => ({
+        ...prev,
+        companies: [...prev.companies, newCompany],
+      }));
+
+      return newCompany;
+    }
   };
 
-  const updateCompany = (id: string, updates: Partial<Company>) => {
-    setData(prev => ({
-      ...prev,
-      companies: prev.companies.map(company =>
-        company.id === id ? { ...company, ...updates } : company
-      ),
-    }));
+  const updateCompany = async (id: string, updates: Partial<Company>) => {
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/companies/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+        });
+
+        if (!response.ok) throw new Error('Failed to update company');
+
+        const updatedCompany: Company = await response.json();
+        setData(prev => ({
+          ...prev,
+          companies: prev.companies.map(company => company.id === id ? updatedCompany : company),
+        }));
+      } catch {
+        showToast('Failed to update company', 'error');
+      }
+    } else {
+      // localStorage mode (guest)
+      setData(prev => ({
+        ...prev,
+        companies: prev.companies.map(company =>
+          company.id === id ? { ...company, ...updates } : company
+        ),
+      }));
+    }
   };
 
-  const deleteCompany = (id: string) => {
+  const deleteCompany = async (id: string) => {
     const company = data.companies.find(c => c.id === id);
     if (!company) return;
 
     const deletedCompany = { ...company };
 
-    addToUndoStack({
-      type: 'company',
-      data: deletedCompany,
-      deletedAt: new Date().toISOString(),
-    });
+    if (isAuthenticated) {
+      // API mode
+      try {
+        const response = await fetch(`/api/companies/${id}`, {
+          method: 'DELETE',
+        });
 
-    setData(prev => ({
-      ...prev,
-      companies: prev.companies.filter(company => company.id !== id),
-    }));
+        if (!response.ok) throw new Error('Failed to delete company');
 
-    showToast(
-      `Deleted company: ${company.name}`,
-      'success',
-      {
-        label: 'UNDO',
-        onClick: () => {
-          setData(prev => ({
-            ...prev,
-            companies: [...prev.companies, deletedCompany],
-          }));
-          showToast('Restored!', 'success');
-        },
+        setData(prev => ({
+          ...prev,
+          companies: prev.companies.filter(company => company.id !== id),
+        }));
+
+        addToUndoStack({
+          type: 'company',
+          data: deletedCompany,
+          deletedAt: new Date().toISOString(),
+        });
+
+        showToast(
+          `Deleted company: ${company.name}`,
+          'success',
+          {
+            label: 'UNDO',
+            onClick: async () => {
+              try {
+                const response = await fetch('/api/companies', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(deletedCompany),
+                });
+
+                if (!response.ok) throw new Error('Failed to restore company');
+
+                const restoredCompany = await response.json();
+                setData(prev => ({
+                  ...prev,
+                  companies: [...prev.companies, restoredCompany],
+                }));
+                showToast('Restored!', 'success');
+              } catch {
+                showToast('Failed to restore company', 'error');
+              }
+            },
+          }
+        );
+      } catch {
+        showToast('Failed to delete company', 'error');
       }
-    );
+    } else {
+      // localStorage mode (guest)
+      addToUndoStack({
+        type: 'company',
+        data: deletedCompany,
+        deletedAt: new Date().toISOString(),
+      });
+
+      setData(prev => ({
+        ...prev,
+        companies: prev.companies.filter(company => company.id !== id),
+      }));
+
+      showToast(
+        `Deleted company: ${company.name}`,
+        'success',
+        {
+          label: 'UNDO',
+          onClick: () => {
+            setData(prev => ({
+              ...prev,
+              companies: [...prev.companies, deletedCompany],
+            }));
+            showToast('Restored!', 'success');
+          },
+        }
+      );
+    }
   };
 
   // Research Contacts CRUD
@@ -938,6 +1080,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             endpoint = '/api/interviews';
             successMessage = 'Restored interview';
             break;
+          case 'company':
+            endpoint = '/api/companies';
+            successMessage = `Restored ${item.data.name}`;
+            break;
           default:
             showToast('Cannot undo this action', 'error');
             return;
@@ -967,8 +1113,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           case 'interview':
             setData(prev => ({ ...prev, interviews: [...prev.interviews, restored] }));
             break;
+          case 'company':
+            setData(prev => ({ ...prev, companies: [...prev.companies, restored] }));
+            break;
         }
-        
+
         showToast(successMessage, 'success');
       } catch {
         showToast('Failed to restore item', 'error');

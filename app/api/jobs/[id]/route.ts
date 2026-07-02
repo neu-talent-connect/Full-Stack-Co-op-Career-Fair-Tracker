@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { validateBody, jobUpdateSchema } from '@/lib/validation';
 
 // GET /api/jobs/:id - Get a single job
 export async function GET(
@@ -48,31 +49,25 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
-
-    // Remove fields that shouldn't be updated
-    const { id: bodyId, userId, createdAt, ...updateData } = body;
-
-    // Coerce Prisma Int fields — dropdowns send strings
-    if (updateData.interest !== undefined) {
-      updateData.interest = Number(updateData.interest);
-    }
+    const body = await request.json().catch(() => null);
+    const parsed = validateBody(jobUpdateSchema, body);
+    if (!parsed.success) return parsed.response;
 
     const job = await prisma.job.updateMany({
       where: {
         id,
         userId: user.id,
       },
-      data: updateData,
+      data: parsed.data,
     });
 
     if (job.count === 0) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });
     }
 
-    // Fetch the updated job
-    const updatedJob = await prisma.job.findUnique({
-      where: { id },
+    // Fetch the updated job (scoped to the user)
+    const updatedJob = await prisma.job.findFirst({
+      where: { id, userId: user.id },
     });
 
     return NextResponse.json(updatedJob);

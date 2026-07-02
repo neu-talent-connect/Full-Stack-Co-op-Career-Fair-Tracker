@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { validateBody, interviewUpdateSchema } from '@/lib/validation';
 
 // PUT /api/interviews/:id - Update an interview
 export async function PUT(
@@ -16,27 +17,29 @@ export async function PUT(
     }
 
     const { id } = await params;
-    const body = await request.json();
-    const { id: bodyId, userId, createdAt, ...updateData } = body;
+    const body = await request.json().catch(() => null);
+    const parsed = validateBody(interviewUpdateSchema, body);
+    if (!parsed.success) return parsed.response;
 
     const interview = await prisma.interview.updateMany({
       where: {
         id,
         userId: user.id,
       },
-      data: updateData,
+      data: parsed.data,
     });
 
     if (interview.count === 0) {
       return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
     }
 
-    const updatedInterview = await prisma.interview.findUnique({
-      where: { id },
+    const updatedInterview = await prisma.interview.findFirst({
+      where: { id, userId: user.id },
     });
 
     return NextResponse.json(updatedInterview);
-  } catch {
+  } catch (e) {
+    console.error('PUT /api/interviews/[id] failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -67,7 +70,8 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (e) {
+    console.error('DELETE /api/interviews/[id] failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

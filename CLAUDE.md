@@ -47,10 +47,10 @@ Supabase Auth handles signup, login, email verification, and session management.
 - `middleware.ts` — refreshes session cookie on every request so users stay logged in
 - `app/auth/callback/route.ts` — handles the email confirmation link, exchanges a one-time code for a session
 
-> **Branch note:** These files exist on `feature/backend-auth`, not yet merged to `main`. The current `main` branch still uses NextAuth v4 + bcryptjs. The merge is blocked — see "Blocked" task below.
+> **Auth status:** Supabase Auth is **merged and live on `main`** — NextAuth/bcryptjs are gone. The above files all exist on `main`. (The old `feature/backend-auth` branch is history.)
 
 ### API routes
-REST-ish handlers under `app/api/`. Every route calls `supabase.auth.getUser()` server-side to get the current user and scopes all queries to `userId` — no user can read or write another user's data.
+REST-ish handlers under `app/api/`. Every route calls `supabase.auth.getUser()` server-side to get the current user and scopes all queries to `userId` — no user can read or write another user's data. Request bodies are validated with zod (`lib/validation.ts`): each entity has a create/update schema that whitelists known columns, coerces int fields, and returns `400` with per-field messages on bad input (Prisma is no longer the only gatekeeper). All route `catch` blocks `console.error` the underlying error for prod log visibility.
 
 ### Folder map
 
@@ -113,15 +113,13 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 
 ## Open Tasks
 
-### Blocked
+### Recently done (2026-07-02, backend integrity pass)
 
-- **feature/backend-auth** — Supabase auth migration is complete in code. Blocked on two things before it can merge:
-  1. ~~`prisma db push` failing with P1001~~ **RESOLVED.** Root cause was a wrong DB password + stale pooler host, compounded by campus networks blocking outbound DB ports. Fix: correct `DATABASE_URL`/`DIRECT_URL` (see env section above) and use a VPN for local migrations. `schema.prisma` now has `directUrl`.
-  2. Supabase dashboard config: Authentication → Providers → Email → enable **Confirm email**; Authentication → URL Configuration → add `http://localhost:3000/auth/callback` as a redirect URL.
+- **fix/companies-api** — ✅ DONE. Companies now persist for authenticated users. Added `app/api/companies/route.ts` + `[id]/route.ts` and wired `AppDataProvider` (fetch on load, API-backed add/update/delete with undo). Migration now includes companies.
+- **Backend hardening** — ✅ zod validation on every POST/PUT (`lib/validation.ts`), `console.error` in all route catches, un-scoped `findUnique`-after-update replaced with user-scoped `findFirst`, `followups/[id]` PUT now returns 401 (was 404) when unauthenticated. Provider surfaces per-entity fetch failures instead of rendering empty, and resets in-memory data + the `migrationDismissed` flag on sign-out. Migration is now per-record and idempotent (keeps only unmigrated records on partial failure; two-step confirm on Discard).
 
 ### In progress (collaborator)
 
-- **fix/companies-api** — Companies only save to localStorage right now; data is lost on logout. Need `app/api/companies/route.ts`, `app/api/companies/[id]/route.ts`, and AppDataProvider updated to call the API when authenticated. No schema change needed — Company table already exists.
 - **feat/custom-templates** — Resources page has hardcoded templates only. Add `Template` model to schema, full CRUD API, wire into AppDataProvider, add "My Templates" UI in `app/resources/page.tsx`. **Schema change required — do not run `npx prisma db push` without coordinating first.**
 
 ### Owner to do

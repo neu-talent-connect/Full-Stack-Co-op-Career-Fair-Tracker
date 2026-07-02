@@ -32,6 +32,7 @@ export function MigrateDataModal() {
   const [localData, setLocalData] = useState<AppData | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -50,6 +51,7 @@ export function MigrateDataModal() {
       const hasData =
         data.jobs?.length > 0 ||
         data.contacts?.length > 0 ||
+        data.companies?.length > 0 ||
         data.followups?.length > 0 ||
         data.interviews?.length > 0 ||
         data.researchContacts?.length > 0;
@@ -69,28 +71,73 @@ export function MigrateDataModal() {
     setIsMigrating(true);
     setError(null);
 
+    // Each entity is migrated record-by-record. Records that fail are kept in
+    // `remaining` so we (a) only clear what actually saved and (b) retrying
+    // re-sends only the failures — no duplicates.
+    const entities: { key: keyof AppData; url: string; label: string }[] = [
+      { key: 'jobs', url: '/api/jobs', label: 'jobs' },
+      { key: 'contacts', url: '/api/contacts', label: 'contacts' },
+      { key: 'companies', url: '/api/companies', label: 'companies' },
+      { key: 'followups', url: '/api/followups', label: 'follow-ups' },
+      { key: 'interviews', url: '/api/interviews', label: 'interviews' },
+      { key: 'researchContacts', url: '/api/research', label: 'research contacts' },
+    ];
+
+    const remaining: AppData = {
+      jobs: [],
+      contacts: [],
+      companies: [],
+      followups: [],
+      interviews: [],
+      researchContacts: [],
+    };
+    const failures: string[] = [];
+
     try {
-      const post = async (url: string, body: unknown) => {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) throw new Error(`Failed to save to ${url}`);
-      };
+      for (const { key, url, label } of entities) {
+        const items = (localData[key] ?? []) as unknown[];
+        let failed = 0;
 
-      for (const job of localData.jobs || []) await post('/api/jobs', job);
-      for (const contact of localData.contacts || []) await post('/api/contacts', contact);
-      for (const followup of localData.followups || []) await post('/api/followups', followup);
-      for (const interview of localData.interviews || []) await post('/api/interviews', interview);
-      for (const researchContact of localData.researchContacts || []) await post('/api/research', researchContact);
+        for (const item of items) {
+          let ok = false;
+          try {
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(item),
+            });
+            ok = res.ok;
+          } catch {
+            ok = false;
+          }
+          if (!ok) {
+            (remaining[key] as unknown[]).push(item);
+            failed++;
+          }
+        }
 
-      // Clear local storage after successful migration
-      localStorage.removeItem(STORAGE_KEY);
-      localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
-      
-      setShowModal(false);
-      window.location.reload(); // Reload to fetch from API
+        if (failed > 0) failures.push(`${failed} ${label}`);
+      }
+
+      const anyRemaining = entities.some(
+        (e) => (remaining[e.key] as unknown[]).length > 0
+      );
+
+      if (anyRemaining) {
+        // Partial success: persist only the unmigrated records and keep the
+        // modal open so the user can retry. Do NOT mark migration dismissed.
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+        setLocalData(remaining);
+        setError(
+          `Saved everything except: ${failures.join(', ')}. These are still stored on this device — please try again.`
+        );
+      } else {
+        // Full success: everything is in the account now.
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
+        setShowModal(false);
+        window.location.reload(); // Reload to fetch from API
+      }
     } catch (err) {
       console.error('Error migrating data:', err);
       setError('Failed to migrate data. Please try again.');
@@ -104,7 +151,12 @@ export function MigrateDataModal() {
     setShowModal(false);
   };
 
-  const handleClearAndDismiss = () => {
+  const handleDiscardClick = () => {
+    // Two-step confirm — this permanently deletes guest data with no undo.
+    if (!confirmingDiscard) {
+      setConfirmingDiscard(true);
+      return;
+    }
     localStorage.removeItem(STORAGE_KEY);
     localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
     setShowModal(false);
@@ -114,6 +166,7 @@ export function MigrateDataModal() {
 
   const jobsCount = localData.jobs?.length || 0;
   const contactsCount = localData.contacts?.length || 0;
+  const companiesCount = localData.companies?.length || 0;
   const followupsCount = localData.followups?.length || 0;
   const interviewsCount = localData.interviews?.length || 0;
   const researchCount = localData.researchContacts?.length || 0;
@@ -147,6 +200,7 @@ export function MigrateDataModal() {
           <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
             {jobsCount > 0 && <li>• {jobsCount} job application{jobsCount !== 1 ? 's' : ''}</li>}
             {contactsCount > 0 && <li>• {contactsCount} contact{contactsCount !== 1 ? 's' : ''}</li>}
+            {companiesCount > 0 && <li>• {companiesCount} compan{companiesCount !== 1 ? 'ies' : 'y'}</li>}
             {followupsCount > 0 && <li>• {followupsCount} follow-up{followupsCount !== 1 ? 's' : ''}</li>}
             {interviewsCount > 0 && <li>• {interviewsCount} interview{interviewsCount !== 1 ? 's' : ''}</li>}
             {researchCount > 0 && <li>• {researchCount} research contact{researchCount !== 1 ? 's' : ''}</li>}
@@ -180,23 +234,39 @@ export function MigrateDataModal() {
             )}
           </Button>
 
+          {confirmingDiscard && (
+            <p className="text-xs text-red-600 dark:text-red-400 text-center px-2">
+              This permanently deletes your guest data on this device and cannot be undone.
+            </p>
+          )}
+
           <Button
-            onClick={handleClearAndDismiss}
+            onClick={handleDiscardClick}
             disabled={isMigrating}
-            variant="outline"
+            variant={confirmingDiscard ? 'danger' : 'outline'}
             className="w-full flex items-center justify-center gap-2"
           >
             <Trash2 className="w-4 h-4" />
-            Discard Guest Data
+            {confirmingDiscard ? 'Yes, permanently delete' : 'Discard Guest Data'}
           </Button>
 
-          <button
-            onClick={handleDismiss}
-            disabled={isMigrating}
-            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-          >
-            Remind me later
-          </button>
+          {confirmingDiscard ? (
+            <button
+              onClick={() => setConfirmingDiscard(false)}
+              disabled={isMigrating}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Keep my data
+            </button>
+          ) : (
+            <button
+              onClick={handleDismiss}
+              disabled={isMigrating}
+              className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+            >
+              Remind me later
+            </button>
+          )}
         </div>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-4 text-center">

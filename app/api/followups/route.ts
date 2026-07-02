@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { validateBody, followupCreateSchema } from '@/lib/validation';
 
 // GET /api/followups - Get all follow-ups for authenticated user
 export async function GET() {
@@ -18,7 +19,8 @@ export async function GET() {
     });
 
     return NextResponse.json(followups);
-  } catch {
+  } catch (e) {
+    console.error('GET /api/followups failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -33,18 +35,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { id, ...followupData } = body;
+    const body = await request.json().catch(() => null);
+    const parsed = validateBody(followupCreateSchema, body);
+    if (!parsed.success) return parsed.response;
 
     const followup = await prisma.followUp.create({
       data: {
-        ...followupData,
+        ...parsed.data,
         userId: user.id,
       },
     });
 
     return NextResponse.json(followup, { status: 201 });
-  } catch {
+  } catch (e) {
+    console.error('POST /api/followups failed:', e);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
