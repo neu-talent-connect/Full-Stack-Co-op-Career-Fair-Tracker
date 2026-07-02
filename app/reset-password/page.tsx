@@ -1,86 +1,52 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { createClient } from '@/lib/supabase/client';
 
-export default function SignupPage() {
+export default function ResetPasswordPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+  // null = checking, true/false = whether a valid recovery session exists
+  const [hasSession, setHasSession] = useState<boolean | null>(null);
 
-  const validateForm = () => {
-    // Email validation
-    if (!email.trim()) {
-      setError('Email is required');
-      return false;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
-      return false;
-    }
-
-    // Password validation
-    if (!password) {
-      setError('Password is required');
-      return false;
-    }
-
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      return false;
-    }
-
-    // Confirm password validation
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return false;
-    }
-
-    // Name validation (if provided)
-    if (name && name.trim().length > 100) {
-      setError('Name must be less than 100 characters');
-      return false;
-    }
-
-    return true;
-  };
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setHasSession(!!user);
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    // Client-side validation
-    if (!validateForm()) {
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
       return;
     }
 
     setIsLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
-      email: email.trim(),
-      password,
-      options: {
-        data: { name: name.trim() || undefined },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError(error.message || 'Something went wrong');
+      setError(error.message || 'Could not update password. The link may have expired.');
       setIsLoading(false);
       return;
     }
@@ -89,18 +55,43 @@ export default function SignupPage() {
     setIsLoading(false);
   };
 
+  // Invalid or expired recovery link
+  if (hasSession === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+        <Card className="w-full max-w-md">
+          <div className="p-8 text-center">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Link expired</h1>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">
+              This password reset link is invalid or has expired. Please request a new one.
+            </p>
+            <Link href="/forgot-password">
+              <Button className="w-full">Request a new link</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
         <Card className="w-full max-w-md">
           <div className="p-8 text-center">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Check your email</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Password updated</h1>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              We sent a confirmation link to <strong>{email}</strong>. Click it to activate your account.
+              Your password has been changed. You can now use it to sign in.
             </p>
-            <Link href="/login">
-              <Button variant="secondary" className="w-full">Back to Login</Button>
-            </Link>
+            <Button
+              className="w-full"
+              onClick={() => {
+                router.push('/');
+                router.refresh();
+              }}
+            >
+              Continue to app
+            </Button>
           </div>
         </Card>
       </div>
@@ -113,10 +104,10 @@ export default function SignupPage() {
         <div className="p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-              Career Tracker
+              Set a new password
             </h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Create your account
+              Choose a strong password you don&apos;t use elsewhere
             </p>
           </div>
 
@@ -127,37 +118,16 @@ export default function SignupPage() {
               </div>
             )}
 
-            <Input
-              label="Name (optional)"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              disabled={isLoading}
-              maxLength={100}
-            />
-
-            <Input
-              label="Email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              disabled={isLoading}
-              autoComplete="email"
-            />
-
             <div>
               <div className="relative">
                 <Input
-                  label="Password"
+                  label="New Password"
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  disabled={isLoading}
+                  disabled={isLoading || hasSession === null}
                   minLength={8}
                   maxLength={128}
                   autoComplete="new-password"
@@ -186,36 +156,24 @@ export default function SignupPage() {
             </div>
 
             <Input
-              label="Confirm Password"
+              label="Confirm New Password"
               type={showPassword ? 'text' : 'password'}
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="••••••••"
-              disabled={isLoading}
+              disabled={isLoading || hasSession === null}
               autoComplete="new-password"
             />
 
             <Button
               type="submit"
               className="w-full"
-              disabled={isLoading}
+              disabled={isLoading || hasSession === null}
             >
-              {isLoading ? 'Creating account...' : 'Sign Up'}
+              {hasSession === null ? 'Verifying link...' : isLoading ? 'Updating...' : 'Update password'}
             </Button>
           </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Already have an account?{' '}
-              <Link
-                href="/login"
-                className="text-northeastern-red hover:underline font-medium"
-              >
-                Sign in
-              </Link>
-            </p>
-          </div>
         </div>
       </Card>
     </div>
