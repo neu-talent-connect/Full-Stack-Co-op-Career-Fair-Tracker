@@ -26,7 +26,7 @@ Design priorities:
 | Framework | Next.js 15 (App Router) + React 18 + TypeScript (`strict: true`) |
 | Styling | Tailwind CSS, dark mode supported |
 | Database | PostgreSQL via Supabase, managed with Prisma 5 |
-| Auth | Supabase Auth — email/password with email verification |
+| Auth | Supabase Auth — Google OAuth + guest mode (email/password disabled) |
 | Deployment | Vercel (frontend + API routes) + Supabase (database + auth) |
 
 ## Architecture
@@ -40,15 +40,16 @@ The app works in two modes depending on whether a user is logged in:
 `components/AppDataProvider.tsx` is the single React context that manages both modes and exposes the same interface to the rest of the app. When a guest signs up, a migration modal offers to move their local data to their account.
 
 ### Auth flow
-Supabase Auth handles signup, login, email verification, Google OAuth, and session management. The key files:
+Auth is **Google OAuth + guest mode only**. Northeastern students all have a Husky Google Workspace account, so Google isn't a friction point — email/password was removed as an active option to keep the surface small. Supabase Auth still handles the Google OAuth flow, session management, and (dormant) code-exchange for the reset path. The key files:
 
 - `lib/supabase/client.ts` — browser Supabase client (use in `"use client"` components)
 - `lib/supabase/server.ts` — server Supabase client (use in API routes and Server Components)
 - `middleware.ts` — refreshes session cookie on every request so users stay logged in
-- `app/auth/callback/route.ts` — exchanges a one-time code for a session; handles BOTH the email-confirmation link and the Google OAuth redirect (same code-exchange path)
+- `app/auth/callback/route.ts` — exchanges a one-time code for a session (the Google OAuth redirect lands here); honors a sanitized `?next=` for any future flow that needs it
 - `components/GoogleSignInButton.tsx` — "Continue with Google" button (`signInWithOAuth`, `redirectTo: <origin>/auth/callback`); rendered on both login and signup
+- `app/login/page.tsx` / `app/signup/page.tsx` — Google button + "Continue as guest" entry. Email/password fields are shown **grayed out / disabled** with a "not available yet" note, and the sign-in/signup handlers are **commented out** (kept in place so email/password can be re-enabled later without a rewrite).
 
-> **Auth status:** Supabase Auth is **live on `main`** (NextAuth/bcryptjs are gone). **Google OAuth is live** — Google Cloud project "jobtracker" (Supabase ref `qokuowykfbgbrkzuzxzg`), consent screen **published to production** (only `email`+`profile` scopes → no Google verification review needed). Email/password signup + guest→account migration also work.
+> **Auth status:** **Google OAuth is live** — Google Cloud project "jobtracker" (Supabase ref `qokuowykfbgbrkzuzxzg`), consent screen **published to production** (only `email`+`profile` scopes → no Google verification review needed). Guest mode + guest→account migration work. **Email/password sign-in is disabled** (commented out, not deleted). `app/forgot-password/` and `app/reset-password/` are kept on disk but dead — nothing links to them while email/password is off.
 
 ### API routes
 REST-ish handlers under `app/api/`. Every route calls `supabase.auth.getUser()` server-side to get the current user and scopes all queries to `userId` — no user can read or write another user's data. Request bodies are validated with zod (`lib/validation.ts`): each entity has a create/update schema that whitelists known columns, coerces int fields, and returns `400` with per-field messages on bad input (Prisma is no longer the only gatekeeper). All route `catch` blocks `console.error` the underlying error for prod log visibility.
@@ -130,7 +131,7 @@ Get the URL + anon key from Supabase → Settings → Data API; get the two conn
 ### Owner to do
 
 - **feat/openapi-spec** — Create `docs/openapi.yaml` as an OpenAPI 3.1 spec for all existing API routes. Used as a shared contract for parallel frontend/backend development. Routes are in `app/api/`; use `prisma/schema.prisma` for request/response shapes. New file only — safe to run in parallel with any other task.
-- **Password reset + email provider** — Not built yet. Add forgot-password (`resetPasswordForEmail`) + update-password pages, and a "resend confirmation" affordance. Needs real email: Supabase's built-in sender is capped ~2/hour. **Use Brevo, not Resend** — the owner has no domain, and Brevo's free tier (300/day, no credit card) sends to arbitrary Gmail/Outlook via SMTP *without* domain verification; Resend requires a DNS-verified domain before it will email real users. Configure in Supabase → Authentication → SMTP Settings. (OAuth users skip email entirely, so this only matters for the password path.)
+- ~~**Email provider (Brevo SMTP)**~~ — **Dropped.** With email/password sign-in disabled (Google OAuth + guest only), there's no password-reset or confirmation email to send, so no SMTP provider is needed. The reset flow (`app/forgot-password/`, `app/reset-password/`) still exists on disk but is dormant and unlinked; if email/password is ever re-enabled, revisit Brevo SMTP then.
 - **R1** — Rewrite `README.md` — tagline, screenshot, feature list, tech stack, run-locally steps, live demo link. Do this last.
 
 ### Cleanup

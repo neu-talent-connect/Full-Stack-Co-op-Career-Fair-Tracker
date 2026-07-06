@@ -41,7 +41,8 @@ export function GuestModeBanner() {
 
   // Hide while resolving auth, for signed-in users, when dismissed, or on the
   // auth pages themselves (where a "sign up" nudge would be redundant).
-  const onAuthPage = pathname === '/login' || pathname === '/signup';
+  const authPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
+  const onAuthPage = authPaths.includes(pathname);
   if (authLoading || user || dismissed || onAuthPage) return null;
 
   return (
