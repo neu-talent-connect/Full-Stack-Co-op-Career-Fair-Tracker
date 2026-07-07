@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,8 +25,10 @@ export function AutocompleteInput({
 }: AutocompleteInputProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listboxId = useId();
 
   useEffect(() => {
     if (value) {
@@ -37,6 +39,7 @@ export function AutocompleteInput({
     } else {
       setFilteredSuggestions(suggestions);
     }
+    setHighlightedIndex(-1);
   }, [value, suggestions]);
 
   useEffect(() => {
@@ -70,8 +73,25 @@ export function AutocompleteInput({
     if (e.key === 'Escape') {
       setIsOpen(false);
       onBlur?.();
-    } else if (e.key === 'Enter' && !isOpen) {
-      onBlur?.();
+    } else if (e.key === 'ArrowDown') {
+      if (!isOpen) {
+        setIsOpen(true);
+      } else if (filteredSuggestions.length > 0) {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev + 1) % filteredSuggestions.length);
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (isOpen && filteredSuggestions.length > 0) {
+        e.preventDefault();
+        setHighlightedIndex((prev) => (prev <= 0 ? filteredSuggestions.length - 1 : prev - 1));
+      }
+    } else if (e.key === 'Enter') {
+      if (isOpen && highlightedIndex >= 0 && filteredSuggestions[highlightedIndex]) {
+        e.preventDefault();
+        handleSelect(filteredSuggestions[highlightedIndex]);
+      } else if (!isOpen) {
+        onBlur?.();
+      }
     }
   };
 
@@ -81,6 +101,11 @@ export function AutocompleteInput({
         <input
           ref={inputRef}
           type="text"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          aria-haspopup="listbox"
+          aria-controls={listboxId}
           value={value}
           onChange={handleInputChange}
           onFocus={() => setIsOpen(true)}
@@ -96,6 +121,7 @@ export function AutocompleteInput({
         />
         <button
           type="button"
+          aria-label="Toggle suggestions"
           onClick={() => setIsOpen(!isOpen)}
           className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
         >
@@ -106,6 +132,8 @@ export function AutocompleteInput({
       {isOpen && filteredSuggestions.length > 0 && (
         <div
           ref={dropdownRef}
+          id={listboxId}
+          role="listbox"
           className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
           {filteredSuggestions.length > 0 && (
@@ -117,8 +145,13 @@ export function AutocompleteInput({
             <button
               key={index}
               type="button"
+              role="option"
+              aria-selected={index === highlightedIndex}
               onClick={() => handleSelect(suggestion)}
-              className="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-gray-100"
+              className={cn(
+                'w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-gray-100',
+                index === highlightedIndex && 'bg-gray-100 dark:bg-gray-700'
+              )}
             >
               {suggestion}
             </button>

@@ -31,7 +31,7 @@ function StarRating({ value, max = 5 }: { value: number; max?: number }) {
       {Array.from({ length: max }).map((_, i) => (
         <Star
           key={i}
-          className={`w-4 h-4 ${i < value ? 'text-yellow-500 fill-current' : 'text-gray-300'}`}
+          className={`w-4 h-4 ${i < value ? 'text-yellow-500 fill-current' : 'text-gray-300 dark:text-gray-600'}`}
         />
       ))}
       <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">({value}/{max})</span>
@@ -49,7 +49,7 @@ export default function NetworkingPage() {
     addResearchContact, updateResearchContact, deleteResearchContact,
   } = useAppData();
 
-  const [activeTab, setActiveTab] = useState<'contacts' | 'followups' | 'research'>('contacts');
+  const [activeTab, setActiveTab] = useState<'contacts' | 'followups' | 'research'>('research');
 
   // ── Contact form state ────────────────────────────────────────────────────
   const [contactForm, setContactForm] = useState<Partial<Contact>>({
@@ -115,7 +115,7 @@ export default function NetworkingPage() {
   };
 
   const handleDeleteContact = (id: string) => {
-    if (confirm('Delete this contact?')) deleteContact(id);
+    deleteContact(id);
   };
 
   const togglePin = (contact: Contact) => {
@@ -136,7 +136,7 @@ export default function NetworkingPage() {
   };
 
   const handleDeleteFollowup = (id: string) => {
-    if (confirm('Delete this follow-up?')) deleteFollowUp(id);
+    deleteFollowUp(id);
   };
 
   // ── Research handlers ─────────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export default function NetworkingPage() {
   };
 
   const handleDeleteResearch = (id: string) => {
-    if (confirm('Delete this research contact?')) deleteResearchContact(id);
+    deleteResearchContact(id);
   };
 
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -414,8 +414,8 @@ export default function NetworkingPage() {
                 )}
 
                 {/* Add company sub-form */}
-                <div className="flex gap-3 items-end">
-                  <div className="flex-1">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div className="flex-1 min-w-[200px]">
                     <Input
                       placeholder="e.g., Google, Amazon, Meta — separate with commas"
                       value={companyEntry.company}
@@ -425,7 +425,7 @@ export default function NetworkingPage() {
                       }}
                     />
                   </div>
-                  <div className="w-40">
+                  <div className="w-full sm:w-40">
                     <Input
                       placeholder="Role (e.g., SWE Intern)"
                       value={companyEntry.position ?? ''}
@@ -435,7 +435,7 @@ export default function NetworkingPage() {
                       }}
                     />
                   </div>
-                  <div className="w-48">
+                  <div className="w-full sm:w-48">
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Interest: {companyEntry.interest}/5
                     </label>
@@ -704,26 +704,36 @@ export default function NetworkingPage() {
                   <option value="Cold Outreach">Cold Outreach</option>
                   <option value="Event">Event</option>
                 </Select>
-                <Select
-                  label="Relationship Strength"
-                  value={contactForm.strength ?? 'Cold'}
-                  onChange={e => setContactForm({ ...contactForm, strength: e.target.value as any })}
-                >
-                  <option value="Cold">Cold</option>
-                  <option value="Warm">Warm</option>
-                  <option value="Hot">Hot</option>
-                </Select>
-                <Select
-                  label="Priority Ranking"
-                  value={contactForm.ranking ?? 3}
-                  onChange={e => setContactForm({ ...contactForm, ranking: Number(e.target.value) })}
-                >
-                  <option value="5">⭐⭐⭐⭐⭐ (5 - Top Priority)</option>
-                  <option value="4">⭐⭐⭐⭐ (4 - High)</option>
-                  <option value="3">⭐⭐⭐ (3 - Medium)</option>
-                  <option value="2">⭐⭐ (2 - Low)</option>
-                  <option value="1">⭐ (1 - Minimal)</option>
-                </Select>
+                <div>
+                  <Select
+                    label="Relationship Strength"
+                    value={contactForm.strength ?? 'Cold'}
+                    onChange={e => setContactForm({ ...contactForm, strength: e.target.value as any })}
+                  >
+                    <option value="Cold">Cold</option>
+                    <option value="Warm">Warm</option>
+                    <option value="Hot">Hot</option>
+                  </Select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Cold = never spoken, Warm = exchanged messages, Hot = strong rapport
+                  </p>
+                </div>
+                <div>
+                  <Select
+                    label="Priority Ranking"
+                    value={contactForm.ranking ?? 3}
+                    onChange={e => setContactForm({ ...contactForm, ranking: Number(e.target.value) })}
+                  >
+                    <option value="5">⭐⭐⭐⭐⭐ (5 - Top Priority)</option>
+                    <option value="4">⭐⭐⭐⭐ (4 - High)</option>
+                    <option value="3">⭐⭐⭐ (3 - Medium)</option>
+                    <option value="2">⭐⭐ (2 - Low)</option>
+                    <option value="1">⭐ (1 - Minimal)</option>
+                  </Select>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    How much you want to stay in touch
+                  </p>
+                </div>
               </div>
 
               <Textarea
@@ -822,7 +832,7 @@ export default function NetworkingPage() {
                               className={`transition-colors ${
                                 contact.isPinned
                                   ? 'text-yellow-500 hover:text-yellow-600'
-                                  : 'text-gray-300 hover:text-gray-400'
+                                  : 'text-gray-300 dark:text-gray-600 hover:text-gray-400'
                               }`}
                               title={contact.isPinned ? 'Unpin contact' : 'Pin contact'}
                             >
@@ -836,13 +846,15 @@ export default function NetworkingPage() {
                                 className={`w-4 h-4 ${
                                   i < (contact.ranking ?? 0)
                                     ? 'text-yellow-500 fill-current'
-                                    : 'text-gray-300'
+                                    : 'text-gray-300 dark:text-gray-600'
                                 }`}
                               />
                             ))}
-                            <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                              ({contact.ranking ?? 0}/5)
-                            </span>
+                            {!!contact.ranking && (
+                              <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                                ({contact.ranking}/5)
+                              </span>
+                            )}
                           </div>
                           {contact.company && (
                             <p className="text-gray-600 dark:text-gray-400">
@@ -922,7 +934,7 @@ export default function NetworkingPage() {
       {/* ── FOLLOW-UPS TAB ───────────────────────────────────────────────── */}
       {activeTab === 'followups' && (
         <>
-          <Card className="mb-8 animate-fade-in" style={{ animationDelay: '200ms' }}>
+          <Card id="followup-form" className="mb-8 animate-fade-in" style={{ animationDelay: '200ms' }}>
             <form onSubmit={handleFollowupSubmit} className="p-6">
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
                 Add Follow-Up Reminder
@@ -1004,9 +1016,16 @@ export default function NetworkingPage() {
           <div className="space-y-4 animate-fade-in" style={{ animationDelay: '300ms' }}>
             {sortedFollowups.length === 0 ? (
               <Card className="p-12 text-center">
-                <p className="text-gray-500 dark:text-gray-400 text-lg">
+                <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">
                   No follow-ups scheduled yet.
                 </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => document.getElementById('followup-form')?.scrollIntoView({ behavior: 'smooth' })}
+                >
+                  Add your first follow-up
+                </Button>
               </Card>
             ) : (
               sortedFollowups.map((followup, index) => {

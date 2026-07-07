@@ -63,6 +63,10 @@ export async function PUT(
       where: { id, userId: user.id },
     });
 
+    if (!updatedCompany) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+    }
+
     return NextResponse.json(updatedCompany);
   } catch (e) {
     console.error('PUT /api/companies/[id] failed:', e);

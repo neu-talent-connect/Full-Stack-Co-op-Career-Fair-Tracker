@@ -3,6 +3,35 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { validateBody, interviewUpdateSchema } from '@/lib/validation';
 
+// GET /api/interviews/:id - Get a single interview
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const interview = await prisma.interview.findFirst({
+      where: { id, userId: user.id },
+    });
+
+    if (!interview) {
+      return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(interview);
+  } catch (e) {
+    console.error('GET /api/interviews/[id] failed:', e);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 // PUT /api/interviews/:id - Update an interview
 export async function PUT(
   request: Request,
@@ -49,6 +78,10 @@ export async function PUT(
     const updatedInterview = await prisma.interview.findFirst({
       where: { id, userId: user.id },
     });
+
+    if (!updatedInterview) {
+      return NextResponse.json({ error: 'Interview not found' }, { status: 404 });
+    }
 
     return NextResponse.json(updatedInterview);
   } catch (e) {

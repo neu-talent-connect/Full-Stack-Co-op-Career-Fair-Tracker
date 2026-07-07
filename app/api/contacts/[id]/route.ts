@@ -70,6 +70,10 @@ export async function PUT(
       where: { id, userId: user.id },
     });
 
+    if (!updatedContact) {
+      return NextResponse.json({ error: 'Contact not found' }, { status: 404 });
+    }
+
     return NextResponse.json(updatedContact);
   } catch (e) {
     console.error('PUT /api/contacts/[id] failed:', e);

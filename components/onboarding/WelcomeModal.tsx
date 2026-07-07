@@ -180,6 +180,7 @@ export function WelcomeModal({ onClose }: WelcomeModalProps) {
               <button
                 key={index}
                 onClick={() => setStep(index)}
+                aria-label={`Go to step ${index + 1}`}
                 className={`w-2 h-2 rounded-full transition-all ${
                   index === step
                     ? 'bg-northeastern-red w-8'

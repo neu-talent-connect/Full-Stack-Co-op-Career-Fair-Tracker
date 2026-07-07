@@ -70,6 +70,10 @@ export async function PUT(
       where: { id, userId: user.id },
     });
 
+    if (!updatedJob) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
     return NextResponse.json(updatedJob);
   } catch (e) {
     console.error('PUT /api/jobs/[id] failed:', e);

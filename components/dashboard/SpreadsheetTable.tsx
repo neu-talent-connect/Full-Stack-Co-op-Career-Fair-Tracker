@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { Job, JobStatus } from '@/types';
 import { formatDate, getStatusColor, getInterestDisplay } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { Trash2, ExternalLink, Mail, Phone, User, X, Copy, Pencil } from 'lucide-react';
+import { Trash2, ExternalLink, Mail, Phone, User, X, Copy, Pencil, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -13,6 +14,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { usePositionSuggestions } from '@/hooks/usePositionSuggestions';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useToast } from '@/components/Toast';
 import { getTodayDate } from '@/lib/utils';
 
 interface SpreadsheetTableProps {
@@ -21,6 +23,7 @@ interface SpreadsheetTableProps {
   onDelete: (id: string) => void;
   onDuplicate?: (job: Job) => void;
   showRecommendedFields?: boolean;
+  onAddNew?: () => void;
 }
 
 interface ContactEditData {
@@ -40,7 +43,8 @@ interface JobEditData {
   notes: string;
 }
 
-export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRecommendedFields = false }: SpreadsheetTableProps) {
+export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRecommendedFields = false, onAddNew }: SpreadsheetTableProps) {
+  const { showToast } = useToast();
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [notesColumnWidth, setNotesColumnWidth] = useState<number>(250);
@@ -161,7 +165,7 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
     if (!editingJob) return;
 
     if (!editingJob.data.company.trim()) {
-      alert('Company name is required');
+      showToast('Company name is required', 'error');
       return;
     }
 
@@ -181,10 +185,16 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
     startWidthRef.current = notesColumnWidth;
   };
 
+  const handleResizeTouchStart = (e: React.TouchEvent) => {
+    setIsResizing(true);
+    startXRef.current = e.touches[0].clientX;
+    startWidthRef.current = notesColumnWidth;
+  };
+
   useEffect(() => {
     const handleResizeMove = (e: MouseEvent) => {
       if (!isResizing) return;
-      
+
       const diff = e.clientX - startXRef.current;
       const newWidth = Math.max(150, Math.min(600, startWidthRef.current + diff));
       setNotesColumnWidth(newWidth);
@@ -194,14 +204,26 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
       setIsResizing(false);
     };
 
+    const handleResizeTouchMove = (e: TouchEvent) => {
+      if (!isResizing) return;
+
+      const diff = e.touches[0].clientX - startXRef.current;
+      const newWidth = Math.max(150, Math.min(600, startWidthRef.current + diff));
+      setNotesColumnWidth(newWidth);
+    };
+
     if (isResizing) {
       document.addEventListener('mousemove', handleResizeMove);
       document.addEventListener('mouseup', handleResizeEnd);
+      document.addEventListener('touchmove', handleResizeTouchMove);
+      document.addEventListener('touchend', handleResizeEnd);
     }
 
     return () => {
       document.removeEventListener('mousemove', handleResizeMove);
       document.removeEventListener('mouseup', handleResizeEnd);
+      document.removeEventListener('touchmove', handleResizeTouchMove);
+      document.removeEventListener('touchend', handleResizeEnd);
     };
   }, [isResizing]);
 
@@ -309,14 +331,15 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
       return <span className="text-sm">{formatDate(value as string)}</span>;
     } else if (field === 'notes') {
       const noteText = value as string;
-      if (!noteText) return <span className="text-gray-400 text-sm">-</span>;
+      if (!noteText) return <span className="text-gray-500 dark:text-gray-400 text-sm">-</span>;
       return (
         <span className="text-sm text-gray-700 dark:text-gray-300" title={noteText}>
           {noteText}
         </span>
       );
     } else {
-      return <span className="text-sm">{value || '-'}</span>;
+      if (!value) return <span className="text-gray-500 dark:text-gray-400 text-sm">-</span>;
+      return <span className="text-sm">{value}</span>;
     }
   };
 
@@ -325,7 +348,7 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
     
     if (!hasContact) {
       return (
-        <span className="text-gray-400 text-sm">-</span>
+        <span className="text-gray-500 dark:text-gray-400 text-sm">-</span>
       );
     }
 
@@ -363,9 +386,22 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
   if (jobs.length === 0) {
     return (
       <Card className="p-12 text-center">
-        <p className="text-gray-500 dark:text-gray-400 text-lg">
+        <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">
           No applications yet. Add your first job application!
         </p>
+        {onAddNew ? (
+          <Button onClick={onAddNew}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Application
+          </Button>
+        ) : (
+          <Link href="/applications">
+            <Button>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Application
+            </Button>
+          </Link>
+        )}
       </Card>
     );
   }
@@ -417,21 +453,22 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
                     <div
                       ref={resizeRef}
                       onMouseDown={handleResizeStart}
-                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-northeastern-red transition-colors"
+                      onTouchStart={handleResizeTouchStart}
+                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize hover:bg-northeastern-red transition-colors touch-none"
                       title="Drag to resize"
                     />
                   </div>
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky right-0 bg-gray-50 dark:bg-gray-800">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
               {jobs.map((job) => (
-                <tr 
-                  key={job.id} 
-                  className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                <tr
+                  key={job.id}
+                  className="group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                 >
                   <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer"
@@ -505,7 +542,7 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
                       {renderCell(job, 'notes')}
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap sticky right-0 bg-white dark:bg-gray-900 group-hover:bg-gray-50 dark:group-hover:bg-gray-800/50">
                     <div className="flex items-center gap-2">
                       {job.url && (
                         <a

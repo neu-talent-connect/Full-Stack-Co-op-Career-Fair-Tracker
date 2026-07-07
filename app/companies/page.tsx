@@ -50,10 +50,8 @@ export default function CompaniesPage() {
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this company?')) {
-      deleteCompany(id);
-      if (editingId === id) handleCancel();
-    }
+    deleteCompany(id);
+    if (editingId === id) handleCancel();
   };
 
   const sortedCompanies = [...data.companies].sort((a, b) =>
@@ -179,11 +177,12 @@ export default function CompaniesPage() {
             </Select>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+              <label htmlFor="company-deadline" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                 Application Deadline
               </label>
               <div className="flex gap-2">
                 <Input
+                  id="company-deadline"
                   type="date"
                   value={formData.deadline || ''}
                   onChange={(e) => setFormData({ ...formData, deadline: e.target.value })}

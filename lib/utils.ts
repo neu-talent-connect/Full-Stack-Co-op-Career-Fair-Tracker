@@ -53,18 +53,18 @@ export function getTodayDate(): string {
 /**
  * Export data to CSV
  */
+const CSV_EXCLUDED_KEYS = new Set(['id', 'userId', 'createdAt', 'updatedAt']);
+
 export function exportToCSV(data: any[], filename: string) {
   if (data.length === 0) return;
-  
-  const headers = Object.keys(data[0]);
+
+  const headers = Object.keys(data[0]).filter(key => !CSV_EXCLUDED_KEYS.has(key));
+  const csvCell = (cell: string) =>
+    /[",\n]/.test(cell) ? `"${cell.replace(/"/g, '""')}"` : cell;
   const csvContent = [
     headers.join(','),
-    ...data.map(row => 
-      headers.map(header => {
-        const cell = row[header]?.toString() || '';
-        // Escape quotes and wrap in quotes if contains comma
-        return cell.includes(',') ? `"${cell.replace(/"/g, '""')}"` : cell;
-      }).join(',')
+    ...data.map(row =>
+      headers.map(header => csvCell(row[header]?.toString() || '')).join(',')
     )
   ].join('\n');
   

@@ -24,6 +24,23 @@ const urlString = z.string().max(500).nullish();
 const longText = z.string().max(10000).nullish();
 const requiredShort = z.string().trim().min(1).max(200);
 
+// Date-ish fields are free text but must start with YYYY-MM-DD so they sort
+// correctly (e.g. followups `orderBy: { dueDate: 'asc' }`). Optional date
+// fields still accept "" / null / undefined (so users can clear them) —
+// only a non-empty value must match the prefix.
+const dateString = z
+  .union([
+    z.literal(''),
+    z.string().max(200).regex(/^\d{4}-\d{2}-\d{2}/, 'Expected YYYY-MM-DD'),
+  ])
+  .nullish();
+const requiredDateString = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .regex(/^\d{4}-\d{2}-\d{2}/, 'Expected YYYY-MM-DD');
+
 // --- Job -------------------------------------------------------------------
 export const jobCreateSchema = z.object({
   company: requiredShort,
@@ -38,8 +55,8 @@ export const jobCreateSchema = z.object({
     'Offer',
   ]),
   interest: z.coerce.number().int().min(1).max(5),
-  dateApplied: shortString,
-  deadline: shortString,
+  dateApplied: dateString,
+  deadline: dateString,
   notes: longText,
   jobId: shortString,
   location: shortString,
@@ -127,7 +144,7 @@ export const followupCreateSchema = z.object({
     'Application Status',
     'LinkedIn Connection',
   ]),
-  dueDate: requiredShort,
+  dueDate: requiredDateString,
   priority: z.enum(['High', 'Medium', 'Low']),
   status: z.enum(['Pending', 'Completed']),
   contact: shortString,
@@ -149,7 +166,7 @@ export const interviewCreateSchema = z.object({
     'Behavioral',
     'Panel',
   ]),
-  date: requiredShort,
+  date: requiredDateString,
   status: z.enum(['Scheduled', 'Completed', 'Cancelled']),
   time: shortString,
   location: shortString,

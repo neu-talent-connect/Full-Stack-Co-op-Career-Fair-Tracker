@@ -3,7 +3,7 @@
 import { createContext, useContext, ReactNode, useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useLocalStorage, LOCAL_STORAGE_ERROR_EVENT } from '@/hooks/useLocalStorage';
 import { useUndo } from '@/hooks/useUndo';
 import { useToast } from '@/components/Toast';
 import { AppData, Job, Company, Contact, FollowUp, Interview, ResearchContact } from '@/types';
@@ -11,6 +11,10 @@ import { generateId } from '@/lib/utils';
 
 const STORAGE_KEY = 'careerFairData';
 const MIGRATION_DISMISSED_KEY = 'migrationDismissed';
+// Dispatched (e.g. by MigrateDataModal after a partial migration) to force an
+// immediate refetch instead of leaving newly-saved records invisible until
+// the next manual reload.
+export const API_STALE_EVENT = 'career-tracker-api-stale';
 
 const initialData: AppData = {
   companies: [],
@@ -48,7 +52,6 @@ interface AppDataContextType {
   updateResearchContact: (id: string, updates: Partial<ResearchContact>) => Promise<void>;
   deleteResearchContact: (id: string) => Promise<void>;
   // Bulk
-  clearAllData: () => void;
   loadSampleData: () => Promise<void>;
   // Undo
   undo: () => Promise<void>;
@@ -112,12 +115,27 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const { showToast } = useToast();
 
+  // Surface localStorage read/write failures (quota exceeded, corrupt JSON)
+  // instead of leaving them console-only.
+  useEffect(() => {
+    const onStorageError = (e: Event) => {
+      const message = (e as CustomEvent).detail?.message;
+      if (message) showToast(message, 'error');
+    };
+    window.addEventListener(LOCAL_STORAGE_ERROR_EVENT, onStorageError);
+    return () => window.removeEventListener(LOCAL_STORAGE_ERROR_EVENT, onStorageError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Append a restored record only if it isn't already present — guards against
   // double-restore (toast UNDO followed by global undo) in guest mode.
   const appendUnlessExists = <T extends { id: string }>(list: T[], item: T): T[] =>
     list.some(x => x.id === item.id) ? list : [...list, item];
 
-  // Fetch data from API on mount if authenticated.
+  // Fetch data from API on mount if authenticated, again on window focus (so
+  // a second device's changes eventually show up), and whenever a
+  // 'career-tracker-api-stale' event fires (e.g. after a partial migration
+  // saves some records — see MigrateDataModal).
   // Each entity loads independently: a failed/transient fetch surfaces a clear
   // error instead of silently rendering that entity empty (which reads as data
   // loss). Successfully-loaded entities still populate.
@@ -125,7 +143,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated || isLoading) return;
 
     let cancelled = false;
-    setIsApiLoading(true);
 
     const endpoints: { key: keyof AppData; label: string; url: string }[] = [
       { key: 'jobs', label: 'jobs', url: '/api/jobs' },
@@ -136,54 +153,64 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       { key: 'companies', label: 'companies', url: '/api/companies' },
     ];
 
-    Promise.allSettled(
-      endpoints.map(async ({ url }) => {
-        const r = await fetch(url);
-        if (!r.ok) throw new Error(`${url} responded ${r.status}`);
-        return r.json();
-      })
-    )
-      .then((results) => {
-        if (cancelled) return;
+    const fetchAll = () => {
+      setIsApiLoading(true);
 
-        const failed: string[] = [];
-        results.forEach((result, i) => {
-          if (result.status === 'rejected') {
-            failed.push(endpoints[i].label);
-            console.error(`Failed to load ${endpoints[i].label}:`, result.reason);
-          }
-        });
+      Promise.allSettled(
+        endpoints.map(async ({ url }) => {
+          const r = await fetch(url);
+          if (!r.ok) throw new Error(`${url} responded ${r.status}`);
+          return r.json();
+        })
+      )
+        .then((results) => {
+          if (cancelled) return;
 
-        // Merge into existing state instead of replacing it: records created
-        // while the load was in flight (missing from the fetch's DB snapshot)
-        // must not vanish, and a failed entity keeps what we already have
-        // rather than rendering empty.
-        setApiData(prev => {
-          const next: AppData = { ...prev };
+          const failed: string[] = [];
           results.forEach((result, i) => {
-            if (result.status !== 'fulfilled') return;
-            const { key } = endpoints[i];
-            const fetched = result.value as { id: string }[];
-            const fetchedIds = new Set(fetched.map(r => r.id));
-            const inFlight = (prev[key] as { id: string }[]).filter(r => !fetchedIds.has(r.id));
-            (next as Record<keyof AppData, unknown>)[key] = [...fetched, ...inFlight];
+            if (result.status === 'rejected') {
+              failed.push(endpoints[i].label);
+              console.error(`Failed to load ${endpoints[i].label}:`, result.reason);
+            }
           });
-          return next;
+
+          // Merge into existing state instead of replacing it: records created
+          // while the load was in flight (missing from the fetch's DB snapshot)
+          // must not vanish, and a failed entity keeps what we already have
+          // rather than rendering empty.
+          setApiData(prev => {
+            const next: AppData = { ...prev };
+            results.forEach((result, i) => {
+              if (result.status !== 'fulfilled') return;
+              const { key } = endpoints[i];
+              const fetched = result.value as { id: string }[];
+              const fetchedIds = new Set(fetched.map(r => r.id));
+              const inFlight = (prev[key] as { id: string }[]).filter(r => !fetchedIds.has(r.id));
+              (next as Record<keyof AppData, unknown>)[key] = [...fetched, ...inFlight];
+            });
+            return next;
+          });
+
+          if (failed.length > 0) {
+            showToast(
+              `Couldn't load: ${failed.join(', ')}. Please refresh to try again.`,
+              'error'
+            );
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setIsApiLoading(false);
         });
+    };
 
-        if (failed.length > 0) {
-          showToast(
-            `Couldn't load: ${failed.join(', ')}. Please refresh to try again.`,
-            'error'
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setIsApiLoading(false);
-      });
+    fetchAll();
 
+    window.addEventListener('focus', fetchAll);
+    window.addEventListener(API_STALE_EVENT, fetchAll);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', fetchAll);
+      window.removeEventListener(API_STALE_EVENT, fetchAll);
     };
   }, [isAuthenticated, isLoading]);
 
@@ -201,9 +228,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!response.ok) throw new Error('Failed to create job');
         
         const newJob: Job = await response.json();
+        // Prepend, not append: the API returns jobs `createdAt desc` on
+        // reload, so a new record's position wouldn't otherwise match until
+        // the next fetch.
         setData(prev => ({
           ...prev,
-          jobs: [...prev.jobs, newJob],
+          jobs: [newJob, ...prev.jobs],
         }));
         
         return newJob;
@@ -368,7 +398,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const newCompany: Company = await response.json();
         setData(prev => ({
           ...prev,
-          companies: [...prev.companies, newCompany],
+          companies: [newCompany, ...prev.companies],
         }));
 
         return newCompany;
@@ -528,7 +558,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const newContact: ResearchContact = await response.json();
         setData(prev => ({
           ...prev,
-          researchContacts: [...(prev.researchContacts ?? []), newContact],
+          researchContacts: [newContact, ...(prev.researchContacts ?? [])],
         }));
 
         return newContact;
@@ -687,7 +717,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         const newContact: Contact = await response.json();
         setData(prev => ({
           ...prev,
-          contacts: [...prev.contacts, newContact],
+          contacts: [newContact, ...prev.contacts],
         }));
         
         return newContact;
@@ -839,9 +869,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!response.ok) throw new Error('Failed to create follow-up');
         
         const newFollowUp: FollowUp = await response.json();
+        // The API orders follow-ups by dueDate asc (not createdAt) — sort
+        // after insert so the new record lands in the right spot instead of
+        // jumping there only after the next reload.
         setData(prev => ({
           ...prev,
-          followups: [...prev.followups, newFollowUp],
+          followups: [...prev.followups, newFollowUp].sort((a, b) => a.dueDate.localeCompare(b.dueDate)),
         }));
         
         return newFollowUp;
@@ -993,9 +1026,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         if (!response.ok) throw new Error('Failed to create interview');
         
         const newInterview: Interview = await response.json();
+        // The API orders interviews by date asc (not createdAt) — sort after
+        // insert so the new record lands in the right spot immediately.
         setData(prev => ({
           ...prev,
-          interviews: [...prev.interviews, newInterview],
+          interviews: [...prev.interviews, newInterview].sort((a, b) => a.date.localeCompare(b.date)),
         }));
         
         return newInterview;
@@ -1132,11 +1167,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         }
       );
     }
-  };
-
-  // Bulk operations
-  const clearAllData = () => {
-    setData(initialData);
   };
 
   // Global undo function
@@ -1406,7 +1436,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     addResearchContact,
     updateResearchContact,
     deleteResearchContact,
-    clearAllData,
     loadSampleData,
     undo,
     canUndo,

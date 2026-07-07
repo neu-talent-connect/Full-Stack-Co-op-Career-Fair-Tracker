@@ -14,22 +14,36 @@ import { exportToCSV } from '@/lib/utils';
 import { Job, DashboardFilters } from '@/types';
 import Link from 'next/link';
 import { GettingStartedBanner } from '@/components/onboarding/GettingStartedBanner';
+import { WelcomeModal } from '@/components/onboarding/WelcomeModal';
 
 export default function DashboardPage() {
   const router = useRouter();
   const { data, updateJob, deleteJob, loadSampleData, isLoading } = useAppData();
   const [filters, setFilters] = useState<DashboardFilters>({});
   const [showGettingStarted, setShowGettingStarted] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
-  // Check if user has data — but not before it has actually loaded, or the
-  // banner flashes over a signed-in user's real data.
+  // Check if first time user — wait for data to load so a signed-in user's
+  // real data doesn't briefly read as "no data"
   useEffect(() => {
     if (isLoading) return;
+    const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
     const dismissed = localStorage.getItem('dismissedGettingStarted');
-    if (!dismissed && data.jobs.length === 0) {
+
+    if (!hasSeenWelcome) {
+      setShowWelcome(true);
+    } else if (!dismissed && data.jobs.length === 0) {
       setShowGettingStarted(true);
     }
   }, [data.jobs.length, isLoading]);
+
+  const handleWelcomeClose = () => {
+    setShowWelcome(false);
+    localStorage.setItem('hasSeenWelcome', 'true');
+    if (data.jobs.length === 0) {
+      setShowGettingStarted(true);
+    }
+  };
 
   const handleDismissGettingStarted = () => {
     setShowGettingStarted(false);
@@ -85,6 +99,13 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Welcome Modal for First-Time Users */}
+      {showWelcome && (
+        <WelcomeModal
+          onClose={handleWelcomeClose}
+        />
+      )}
+
       {/* Header */}
       <div className="mb-8 animate-fade-in">
         <div className="flex items-start justify-between">

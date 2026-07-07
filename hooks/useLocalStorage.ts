@@ -5,9 +5,30 @@ import { useState, useEffect, useRef } from 'react';
 // must dispatch this event to keep useLocalStorage state in sync.
 const LOCAL_CHANGE_EVENT = 'local-storage-change';
 
+// Dispatched when a read/write against localStorage fails (quota exceeded,
+// corrupt JSON, private-mode restrictions) so a component with toast access
+// (AppDataProvider) can surface it instead of it being console-only.
+export const LOCAL_STORAGE_ERROR_EVENT = 'local-storage-error';
+
 export function notifyLocalStorageChange(key: string) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent(LOCAL_CHANGE_EVENT, { detail: { key } }));
+  }
+}
+
+function notifyLocalStorageError(message: string) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent(LOCAL_STORAGE_ERROR_EVENT, { detail: { message } }));
+  }
+}
+
+// Stash unparseable JSON under a timestamped backup key instead of letting
+// the next write silently overwrite (and destroy) it.
+function backupCorruptValue(key: string, raw: string) {
+  try {
+    window.localStorage.setItem(`${key}.corrupt-${Date.now()}`, raw);
+  } catch {
+    // Best-effort — if storage is full, there's nothing more we can do.
   }
 }
 
@@ -26,6 +47,8 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       return item ? JSON.parse(item) : initialValue;
     } catch (error) {
       console.error(`Error loading ${key} from localStorage:`, error);
+      const raw = window.localStorage.getItem(key);
+      if (raw) backupCorruptValue(key, raw);
       return initialValue;
     }
   });
@@ -47,6 +70,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         setStoredValue(value);
       } catch (error) {
         console.error(`Error reloading ${key} from localStorage:`, error);
+        const raw = window.localStorage.getItem(key);
+        if (raw) backupCorruptValue(key, raw);
+        notifyLocalStorageError("Couldn't read saved data — it may have been corrupted.");
       }
     };
     const onStorage = (e: StorageEvent) => {
@@ -77,6 +103,9 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       }
     } catch (error) {
       console.error(`Error saving ${key} to localStorage:`, error);
+      // React state above already updated, so the UI still reflects the
+      // change — but it won't survive a reload. Say so.
+      notifyLocalStorageError("Couldn't save your changes locally — your browser's storage may be full. This change will be lost on reload.");
     }
   };
 

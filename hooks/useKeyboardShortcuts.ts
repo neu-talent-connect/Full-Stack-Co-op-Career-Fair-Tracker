@@ -57,7 +57,8 @@ export function useKeyboardShortcuts(
 
 export function useGlobalShortcuts(
   onNewJob?: () => void,
-  onShowShortcuts?: () => void
+  onShowShortcuts?: () => void,
+  onToggleTheme?: () => void
 ) {
   const router = useRouter();
 
@@ -86,25 +87,15 @@ export function useGlobalShortcuts(
       },
       category: 'Actions',
     },
-    {
-      key: 'k',
-      ctrl: true,
-      description: 'Quick search (coming soon)',
-      action: () => {
-        // TODO: Implement quick search
-        console.log('Quick search coming soon!');
-      },
-      category: 'Actions',
-    },
     // View
     {
       key: 'd',
       ctrl: true,
       description: 'Toggle dark mode',
       action: () => {
-        const html = document.documentElement;
-        html.classList.toggle('dark');
-        localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+        if (onToggleTheme) {
+          onToggleTheme();
+        }
       },
       category: 'View',
     },

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAppData } from '@/hooks/useAppData';
+import { useToast } from '@/components/Toast';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,7 @@ import { Job } from '@/types';
 export default function ApplicationsPage() {
   const router = useRouter();
   const { data, addJob, deleteJob } = useAppData();
+  const { showToast } = useToast();
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [formData, setFormData] = useState<Partial<Job>>({
     status: 'Not Started',
@@ -41,14 +43,13 @@ export default function ApplicationsPage() {
       coverLetter: 'None',
     });
     setShowAdvanced(false);
-    
+
+    showToast('Application added', 'success');
     router.push('/');
   };
 
   const handleDelete = (id: string) => {
-    if (confirm('Are you sure you want to delete this application?')) {
-      deleteJob(id);
-    }
+    deleteJob(id);
   };
 
   const sortedJobs = [...data.jobs].sort((a, b) => {

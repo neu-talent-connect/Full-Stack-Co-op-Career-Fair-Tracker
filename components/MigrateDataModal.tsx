@@ -7,9 +7,14 @@ import { Button } from '@/components/ui/Button';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { AppData } from '@/types';
 import { notifyLocalStorageChange } from '@/hooks/useLocalStorage';
+import { API_STALE_EVENT } from '@/components/AppDataProvider';
 
 const STORAGE_KEY = 'careerFairData';
 const MIGRATION_DISMISSED_KEY = 'migrationDismissed';
+// "Remind me later" only snoozes for the current browser session — it must
+// not use the permanent localStorage flag, or a user who never signs out is
+// never re-offered and their guest data sits invisible indefinitely.
+const MIGRATION_SNOOZED_KEY = 'migrationSnoozed';
 
 export function MigrateDataModal() {
   const [user, setUser] = useState<User | null>(null);
@@ -39,9 +44,11 @@ export function MigrateDataModal() {
     if (authLoading) return;
     if (!isAuthenticated) return;
 
-    // Check if migration was already dismissed
+    // Check if migration was already dismissed (permanent) or snoozed (this
+    // browser session only — "Remind me later" shouldn't mean "never again")
     const dismissed = localStorage.getItem(MIGRATION_DISMISSED_KEY);
-    if (dismissed) return;
+    const snoozed = sessionStorage.getItem(MIGRATION_SNOOZED_KEY);
+    if (dismissed || snoozed) return;
 
     // Check if there's local data to migrate
     try {
@@ -161,8 +168,11 @@ export function MigrateDataModal() {
       if (anyRemaining) {
         // Partial success: localStorage already holds only the unmigrated
         // records; keep the modal open so the user can retry. Do NOT mark
-        // migration dismissed.
+        // migration dismissed. The records that DID save are now in the
+        // account — tell the provider to refetch so they show up immediately
+        // instead of staying invisible behind this modal until a reload.
         setLocalData({ ...pending });
+        window.dispatchEvent(new Event(API_STALE_EVENT));
         setError(
           `Saved everything except: ${failures.join(', ')}. These are still stored on this device — please try again.`
         );
@@ -183,7 +193,9 @@ export function MigrateDataModal() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
+    // Session-only snooze — re-offered next time this browser session ends
+    // and a new one starts, instead of being hidden forever.
+    sessionStorage.setItem(MIGRATION_SNOOZED_KEY, 'true');
     setShowModal(false);
   };
 

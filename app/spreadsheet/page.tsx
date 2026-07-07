@@ -36,9 +36,11 @@ export default function SpreadsheetPage() {
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
     const hasData = data.jobs.length > 0;
 
+    const dismissedGettingStarted = localStorage.getItem('dismissedGettingStarted');
+
     if (!hasSeenWelcome) {
       setShowWelcome(true);
-    } else if (!hasData) {
+    } else if (!dismissedGettingStarted && !hasData) {
       setShowGettingStarted(true);
     }
   }, [data.jobs.length, isLoading]);

@@ -49,7 +49,8 @@ export function Navigation() {
   
   const shortcuts = useGlobalShortcuts(
     undefined,
-    () => setShowShortcuts(true)
+    () => setShowShortcuts(true),
+    toggleTheme
   );
   
   // Add Ctrl+Z listener for undo
@@ -145,6 +146,8 @@ export function Navigation() {
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   title={user?.email || 'Account'}
+                  aria-haspopup="menu"
+                  aria-expanded={showUserMenu}
                 >
                   <User className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300 hidden md:inline">
@@ -188,6 +191,7 @@ export function Navigation() {
               <div className="flex items-center gap-2">
                 <Link
                   href="/login"
+                  aria-label="Log in"
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
@@ -195,6 +199,7 @@ export function Navigation() {
                 </Link>
                 <Link
                   href="/signup"
+                  aria-label="Sign up"
                   className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-northeastern-red text-white hover:bg-red-700 transition-colors"
                 >
                   <UserPlus className="w-4 h-4" />

@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { useAppData } from '@/hooks/useAppData';
 import { AddJobPanel } from '@/components/AddJobPanel';
 
 export function FloatingAddButton() {
   const { addJob } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
+  const pathname = usePathname();
 
   const handleAddJob = async (jobData: any) => {
     // Throws on failure — AddJobPanel keeps the form populated
@@ -21,6 +23,10 @@ export function FloatingAddButton() {
       setTimeout(() => btn.classList.remove('scale-110'), 200);
     }
   };
+
+  // Hide on the auth pages — an "add application" nudge is out of place there.
+  const authPaths = ['/login', '/signup', '/forgot-password', '/reset-password'];
+  if (authPaths.includes(pathname)) return null;
 
   return (
     <>

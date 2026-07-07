@@ -31,9 +31,15 @@ export async function middleware(request: NextRequest) {
   // The .catch() on getUser() is critical: if the timeout wins and getUser()
   // later rejects, without .catch() it becomes an unhandled rejection that
   // crashes the Next.js dev server on the next request.
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, 3000));
+  const TIMED_OUT = Symbol('timed-out');
+  const timeout = new Promise<typeof TIMED_OUT>((resolve) =>
+    setTimeout(() => resolve(TIMED_OUT), 3000)
+  );
   try {
-    await Promise.race([supabase.auth.getUser().catch(() => null), timeout]);
+    const result = await Promise.race([supabase.auth.getUser().catch(() => null), timeout]);
+    if (result === TIMED_OUT) {
+      console.warn('middleware: Supabase getUser() timed out after 3s — session refresh skipped');
+    }
   } catch {
     // Supabase unreachable — continue without a refreshed session.
   }

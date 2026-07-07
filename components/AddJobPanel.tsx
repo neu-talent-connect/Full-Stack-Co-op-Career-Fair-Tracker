@@ -10,6 +10,7 @@ import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { usePositionSuggestions } from '@/hooks/usePositionSuggestions';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { getTodayDate } from '@/lib/utils';
+import { useToast } from '@/components/Toast';
 
 interface AddJobPanelProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ interface AddJobPanelProps {
 }
 
 export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
+  const { showToast } = useToast();
   const { positions, addPosition } = usePositionSuggestions();
   const [formData, setFormData] = useState({
     company: '',
@@ -35,7 +37,7 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
     e.preventDefault();
 
     if (!formData.company.trim()) {
-      alert('Company name is required');
+      showToast('Company name is required', 'error');
       return;
     }
 
