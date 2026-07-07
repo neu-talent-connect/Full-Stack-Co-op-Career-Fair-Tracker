@@ -91,12 +91,19 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const job = await prisma.job.deleteMany({
-      where: {
-        id,
-        userId: user.id,
-      },
-    });
+    // Interview.jobId has no FK — delete dependent interviews with the job,
+    // atomically, so no orphaned Interview rows are left behind.
+    const [, job] = await prisma.$transaction([
+      prisma.interview.deleteMany({
+        where: { jobId: id, userId: user.id },
+      }),
+      prisma.job.deleteMany({
+        where: {
+          id,
+          userId: user.id,
+        },
+      }),
+    ]);
 
     if (job.count === 0) {
       return NextResponse.json({ error: 'Job not found' }, { status: 404 });

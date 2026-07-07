@@ -54,6 +54,8 @@ interface AppDataContextType {
   undo: () => Promise<void>;
   canUndo: boolean;
   undoCount: number;
+  // True while auth state or (for signed-in users) initial API data is loading
+  isLoading: boolean;
 }
 
 const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
@@ -61,6 +63,8 @@ const AppDataContext = createContext<AppDataContextType | undefined>(undefined);
 export function AppDataProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  const { addToUndoStack, popFromUndoStack, clearUndoStack, consumeIfMatches, canUndo, undoCount } = useUndo();
 
   useEffect(() => {
     const supabase = createClient();
@@ -71,6 +75,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
+      // The undo item must not cross the guest/account boundary: restoring a
+      // guest deletion into an account (or vice versa) inserts data that was
+      // never owned by that side.
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
+        clearUndoStack();
+      }
       // On sign-out, drop the previous user's in-memory data and clear the
       // migration flag so the next guest on this browser is offered migration.
       if (event === 'SIGNED_OUT') {
@@ -83,6 +93,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       }
     });
     return () => subscription.unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const isAuthenticated = !!user;
@@ -99,8 +110,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const data = isAuthenticated ? apiData : localData;
   const setData = isAuthenticated ? setApiData : setLocalData;
 
-  const { addToUndoStack, popFromUndoStack, canUndo, undoCount } = useUndo();
   const { showToast } = useToast();
+
+  // Append a restored record only if it isn't already present — guards against
+  // double-restore (toast UNDO followed by global undo) in guest mode.
+  const appendUnlessExists = <T extends { id: string }>(list: T[], item: T): T[] =>
+    list.some(x => x.id === item.id) ? list : [...list, item];
 
   // Fetch data from API on mount if authenticated.
   // Each entity loads independently: a failed/transient fetch surfaces a clear
@@ -131,20 +146,30 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       .then((results) => {
         if (cancelled) return;
 
-        const next: AppData = { ...initialData };
         const failed: string[] = [];
-
         results.forEach((result, i) => {
-          const { key, label } = endpoints[i];
-          if (result.status === 'fulfilled') {
-            next[key] = result.value;
-          } else {
-            failed.push(label);
-            console.error(`Failed to load ${label}:`, result.reason);
+          if (result.status === 'rejected') {
+            failed.push(endpoints[i].label);
+            console.error(`Failed to load ${endpoints[i].label}:`, result.reason);
           }
         });
 
-        setApiData(next);
+        // Merge into existing state instead of replacing it: records created
+        // while the load was in flight (missing from the fetch's DB snapshot)
+        // must not vanish, and a failed entity keeps what we already have
+        // rather than rendering empty.
+        setApiData(prev => {
+          const next: AppData = { ...prev };
+          results.forEach((result, i) => {
+            if (result.status !== 'fulfilled') return;
+            const { key } = endpoints[i];
+            const fetched = result.value as { id: string }[];
+            const fetchedIds = new Set(fetched.map(r => r.id));
+            const inFlight = (prev[key] as { id: string }[]).filter(r => !fetchedIds.has(r.id));
+            (next as Record<keyof AppData, unknown>)[key] = [...fetched, ...inFlight];
+          });
+          return next;
+        });
 
         if (failed.length > 0) {
           showToast(
@@ -285,6 +310,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   ...prev,
                   jobs: [...prev.jobs, restoredJob],
                 }));
+                consumeIfMatches(deletedJob.id);
                 showToast('Restored!', 'success');
               } catch {
                 showToast('Failed to restore job', 'error');
@@ -314,17 +340,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         {
           label: 'UNDO',
           onClick: () => {
-            setData(prev => {
-              const exists = prev.jobs.some(j => j.id === deletedJob.id);
-              if (exists) {
-                return prev;
-              }
-              
-              return {
-                ...prev,
-                jobs: [...prev.jobs, deletedJob],
-              };
-            });
+            setData(prev => ({
+              ...prev,
+              jobs: appendUnlessExists(prev.jobs, deletedJob),
+            }));
+            consumeIfMatches(deletedJob.id);
             showToast('Restored!', 'success');
           },
         }
@@ -450,6 +470,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   ...prev,
                   companies: [...prev.companies, restoredCompany],
                 }));
+                consumeIfMatches(deletedCompany.id);
                 showToast('Restored!', 'success');
               } catch {
                 showToast('Failed to restore company', 'error');
@@ -481,8 +502,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           onClick: () => {
             setData(prev => ({
               ...prev,
-              companies: [...prev.companies, deletedCompany],
+              companies: appendUnlessExists(prev.companies, deletedCompany),
             }));
+            consumeIfMatches(deletedCompany.id);
             showToast('Restored!', 'success');
           },
         }
@@ -563,6 +585,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   };
 
   const deleteResearchContact = async (id: string) => {
+    const contact = (data.researchContacts ?? []).find(c => c.id === id);
+    if (!contact) return;
+
+    const deletedResearch = { ...contact };
+
     if (isAuthenticated) {
       // API mode
       try {
@@ -576,15 +603,72 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           ...prev,
           researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
         }));
+
+        addToUndoStack({
+          type: 'research',
+          data: deletedResearch,
+          deletedAt: new Date().toISOString(),
+        });
+
+        showToast(
+          `Deleted research contact: ${contact.name}`,
+          'success',
+          {
+            label: 'UNDO',
+            onClick: async () => {
+              try {
+                const response = await fetch('/api/research', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(deletedResearch),
+                });
+
+                if (!response.ok) throw new Error('Failed to restore research contact');
+
+                const restoredResearch = await response.json();
+                setData(prev => ({
+                  ...prev,
+                  researchContacts: [...(prev.researchContacts ?? []), restoredResearch],
+                }));
+                consumeIfMatches(deletedResearch.id);
+                showToast('Restored!', 'success');
+              } catch {
+                showToast('Failed to restore research contact', 'error');
+              }
+            },
+          }
+        );
       } catch {
         showToast('Failed to delete research contact', 'error');
       }
     } else {
       // localStorage mode (guest)
+      addToUndoStack({
+        type: 'research',
+        data: deletedResearch,
+        deletedAt: new Date().toISOString(),
+      });
+
       setData(prev => ({
         ...prev,
         researchContacts: (prev.researchContacts ?? []).filter(c => c.id !== id),
       }));
+
+      showToast(
+        `Deleted research contact: ${contact.name}`,
+        'success',
+        {
+          label: 'UNDO',
+          onClick: () => {
+            setData(prev => ({
+              ...prev,
+              researchContacts: appendUnlessExists(prev.researchContacts ?? [], deletedResearch),
+            }));
+            consumeIfMatches(deletedResearch.id);
+            showToast('Restored!', 'success');
+          },
+        }
+      );
     }
   };
 
@@ -701,6 +785,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   ...prev,
                   contacts: [...prev.contacts, restoredContact],
                 }));
+                consumeIfMatches(deletedContact.id);
                 showToast('Restored!', 'success');
               } catch {
                 showToast('Failed to restore contact', 'error');
@@ -731,8 +816,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           onClick: () => {
             setData(prev => ({
               ...prev,
-              contacts: [...prev.contacts, deletedContact],
+              contacts: appendUnlessExists(prev.contacts, deletedContact),
             }));
+            consumeIfMatches(deletedContact.id);
             showToast('Restored!', 'success');
           },
         }
@@ -853,6 +939,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   ...prev,
                   followups: [...prev.followups, restoredFollowUp],
                 }));
+                consumeIfMatches(deletedFollowUp.id);
                 showToast('Restored!', 'success');
               } catch {
                 showToast('Failed to restore follow-up', 'error');
@@ -883,8 +970,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           onClick: () => {
             setData(prev => ({
               ...prev,
-              followups: [...prev.followups, deletedFollowUp],
+              followups: appendUnlessExists(prev.followups, deletedFollowUp),
             }));
+            consumeIfMatches(deletedFollowUp.id);
             showToast('Restored!', 'success');
           },
         }
@@ -1005,6 +1093,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
                   ...prev,
                   interviews: [...prev.interviews, restoredInterview],
                 }));
+                consumeIfMatches(deletedInterview.id);
                 showToast('Restored!', 'success');
               } catch {
                 showToast('Failed to restore interview', 'error');
@@ -1035,8 +1124,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           onClick: () => {
             setData(prev => ({
               ...prev,
-              interviews: [...prev.interviews, deletedInterview],
+              interviews: appendUnlessExists(prev.interviews, deletedInterview),
             }));
+            consumeIfMatches(deletedInterview.id);
             showToast('Restored!', 'success');
           },
         }
@@ -1084,6 +1174,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
             endpoint = '/api/companies';
             successMessage = `Restored ${item.data.name}`;
             break;
+          case 'research':
+            endpoint = '/api/research';
+            successMessage = `Restored ${item.data.name}`;
+            break;
           default:
             showToast('Cannot undo this action', 'error');
             return;
@@ -1116,49 +1210,62 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
           case 'company':
             setData(prev => ({ ...prev, companies: [...prev.companies, restored] }));
             break;
+          case 'research':
+            setData(prev => ({ ...prev, researchContacts: [...(prev.researchContacts ?? []), restored] }));
+            break;
         }
 
         showToast(successMessage, 'success');
       } catch {
+        // Restore failed — put the item back so the deletion stays undoable.
+        addToUndoStack(item);
         showToast('Failed to restore item', 'error');
       }
     } else {
-      // localStorage mode (guest)
+      // localStorage mode (guest) — appendUnlessExists guards against
+      // re-inserting a record the toast UNDO already restored.
       switch (item.type) {
         case 'job':
           setData(prev => ({
             ...prev,
-            jobs: [...prev.jobs, item.data],
+            jobs: appendUnlessExists(prev.jobs, item.data),
           }));
           showToast(`Restored ${item.data.company}`, 'success');
           break;
         case 'company':
           setData(prev => ({
             ...prev,
-            companies: [...prev.companies, item.data],
+            companies: appendUnlessExists(prev.companies, item.data),
           }));
           showToast(`Restored ${item.data.name}`, 'success');
           break;
         case 'contact':
           setData(prev => ({
             ...prev,
-            contacts: [...prev.contacts, item.data],
+            contacts: appendUnlessExists(prev.contacts, item.data),
           }));
           showToast(`Restored ${item.data.name}`, 'success');
           break;
         case 'followup':
           setData(prev => ({
             ...prev,
-            followups: [...prev.followups, item.data],
+            followups: appendUnlessExists(prev.followups, item.data),
           }));
           showToast('Restored follow-up', 'success');
           break;
         case 'interview':
           setData(prev => ({
             ...prev,
-            interviews: [...prev.interviews, item.data],
+            interviews: appendUnlessExists(prev.interviews, item.data),
           }));
           showToast('Restored interview', 'success');
+          break;
+        case 'research':
+          setData(prev => ({
+            ...prev,
+            researchContacts: appendUnlessExists(prev.researchContacts ?? [], item.data),
+          }));
+          showToast(`Restored ${item.data.name}`, 'success');
           break;
       }
     }
@@ -1240,7 +1347,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         showToast('Failed to load sample data', 'error');
       }
     } else {
-      // Guest mode: store locally only
+      // Guest mode: store locally only. Appended (not replaced) so existing
+      // guest data — including follow-ups/interviews/research the old guard
+      // never checked — can't be silently erased.
       const sampleData: AppData = {
         companies: [
           {
@@ -1266,7 +1375,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         interviews: [],
         researchContacts: [],
       };
-      setLocalData(sampleData);
+      setLocalData(prev => ({
+        companies: [...prev.companies, ...sampleData.companies],
+        contacts: [...prev.contacts, ...sampleData.contacts],
+        jobs: [...prev.jobs, ...sampleData.jobs],
+        followups: [...prev.followups, ...sampleData.followups],
+        interviews: prev.interviews,
+        researchContacts: prev.researchContacts ?? [],
+      }));
     }
   };
 
@@ -1295,6 +1411,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     undo,
     canUndo,
     undoCount,
+    isLoading: authLoading || isApiLoading,
   };
 
   return (

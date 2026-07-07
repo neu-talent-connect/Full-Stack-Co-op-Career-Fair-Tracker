@@ -8,12 +8,13 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { usePositionSuggestions } from '@/hooks/usePositionSuggestions';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { getTodayDate } from '@/lib/utils';
 
 interface AddJobPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (jobData: any) => void;
+  onAdd: (jobData: any) => void | Promise<void>;
   //
 }
 
@@ -30,9 +31,9 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
     notes: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.company.trim()) {
       alert('Company name is required');
       return;
@@ -43,8 +44,13 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
       addPosition(formData.title.trim());
     }
 
-    onAdd(formData);
-    
+    try {
+      await onAdd(formData);
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
+    }
+
     // Reset form
     setFormData({
       company: '',
@@ -62,6 +68,8 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
     setFormData({ ...formData, deadline: getTodayDate() });
   };
 
+  useEscapeKey(onClose, isOpen);
+
   if (!isOpen) return null;
 
   return (
@@ -73,7 +81,12 @@ export function AddJobPanel({ isOpen, onClose, onAdd }: AddJobPanelProps) {
       />
 
       {/* Slide-in Panel */}
-      <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto animate-slide-in-right">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add Application"
+        className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto animate-slide-in-right"
+      >
         <form onSubmit={handleSubmit} className="h-full flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">

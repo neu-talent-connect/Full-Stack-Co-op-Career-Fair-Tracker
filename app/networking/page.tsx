@@ -86,15 +86,20 @@ export default function NetworkingPage() {
   const [researchStatusFilter, setResearchStatusFilter] = useState<OutreachStatus | ''>('');
 
   // ── Contact handlers ──────────────────────────────────────────────────────
-  const handleContactSubmit = (e: React.FormEvent) => {
+  const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contactForm.name) return;
-    if (editingContactId) {
-      updateContact(editingContactId, contactForm);
-      setEditingContactId(null);
-    } else {
-      addContact(contactForm as any);
+    try {
+      if (editingContactId) {
+        await updateContact(editingContactId, contactForm);
+      } else {
+        await addContact(contactForm as any);
+      }
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
     }
+    setEditingContactId(null);
     setContactForm({ type: 'Career Fair', strength: 'Cold', ranking: 3, isPinned: false });
   };
 
@@ -118,10 +123,15 @@ export default function NetworkingPage() {
   };
 
   // ── Follow-up handlers ────────────────────────────────────────────────────
-  const handleFollowupSubmit = (e: React.FormEvent) => {
+  const handleFollowupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!followupForm.company || !followupForm.dueDate) return;
-    addFollowUp(followupForm as any);
+    try {
+      await addFollowUp(followupForm as any);
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
+    }
     setFollowupForm({ type: 'Thank You', priority: 'Medium', status: 'Pending' });
   };
 
@@ -175,7 +185,7 @@ export default function NetworkingPage() {
     }));
   };
 
-  const handleResearchSubmit = (e: React.FormEvent) => {
+  const handleResearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!researchForm.name) return;
     const payload = {
@@ -186,12 +196,17 @@ export default function NetworkingPage() {
       outreachStatus: researchForm.outreachStatus ?? 'To Reach Out',
       notes: researchForm.notes,
     };
-    if (editingResearchId) {
-      updateResearchContact(editingResearchId, payload);
-      setEditingResearchId(null);
-    } else {
-      addResearchContact(payload);
+    try {
+      if (editingResearchId) {
+        await updateResearchContact(editingResearchId, payload);
+      } else {
+        await addResearchContact(payload);
+      }
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
     }
+    setEditingResearchId(null);
     setResearchForm(emptyResearchForm());
     setCompanyEntry({ company: '', interest: 3 });
   };

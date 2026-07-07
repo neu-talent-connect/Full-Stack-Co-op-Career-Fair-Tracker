@@ -55,6 +55,18 @@ export function Navigation() {
   // Add Ctrl+Z listener for undo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Never hijack undo while the user is typing — that's the browser's
+      // native text undo, and firing ours could silently re-insert a
+      // previously deleted record mid-keystroke.
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
         e.preventDefault();
         undo();

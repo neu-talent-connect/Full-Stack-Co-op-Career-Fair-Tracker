@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { X, ArrowRight, CheckCircle } from 'lucide-react';
 
 interface WelcomeModalProps {
@@ -139,14 +140,21 @@ export function WelcomeModal({ onClose }: WelcomeModalProps) {
   const currentStep = steps[step];
   const isLastStep = step === steps.length - 1;
 
+  useEscapeKey(onClose);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="welcome-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+    >
       <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              <h2 id="welcome-modal-title" className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                 {currentStep.title}
               </h2>
               <p className="text-gray-600 dark:text-gray-400">

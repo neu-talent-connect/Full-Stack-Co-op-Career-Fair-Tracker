@@ -17,17 +17,19 @@ import { GettingStartedBanner } from '@/components/onboarding/GettingStartedBann
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { data, updateJob, deleteJob, loadSampleData } = useAppData();
+  const { data, updateJob, deleteJob, loadSampleData, isLoading } = useAppData();
   const [filters, setFilters] = useState<DashboardFilters>({});
   const [showGettingStarted, setShowGettingStarted] = useState(false);
 
-  // Check if user has data
+  // Check if user has data — but not before it has actually loaded, or the
+  // banner flashes over a signed-in user's real data.
   useEffect(() => {
+    if (isLoading) return;
     const dismissed = localStorage.getItem('dismissedGettingStarted');
     if (!dismissed && data.jobs.length === 0) {
       setShowGettingStarted(true);
     }
-  }, [data.jobs.length]);
+  }, [data.jobs.length, isLoading]);
 
   const handleDismissGettingStarted = () => {
     setShowGettingStarted(false);
@@ -35,19 +37,26 @@ export default function DashboardPage() {
   };
 
   const handleLoadSampleData = () => {
-    // Safety check: if user has data, show confirmation
-    if (data.jobs.length > 0 || data.companies.length > 0 || data.contacts.length > 0) {
+    if (isLoading) return;
+    // Safety check: if the user has ANY data, confirm before adding samples
+    const hasData =
+      data.jobs.length > 0 ||
+      data.companies.length > 0 ||
+      data.contacts.length > 0 ||
+      data.followups.length > 0 ||
+      data.interviews.length > 0 ||
+      (data.researchContacts ?? []).length > 0;
+    if (hasData) {
       const confirmed = window.confirm(
-        '⚠️ WARNING: This will REPLACE all your current data with sample data.\n\n' +
-        'All your applications, companies, and contacts will be lost.\n\n' +
-        'Are you absolutely sure you want to continue?'
+        'This will add sample data alongside your existing data.\n\n' +
+        'Continue?'
       );
-      
+
       if (!confirmed) {
         return;
       }
     }
-    
+
     loadSampleData();
   };
   
@@ -96,8 +105,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Loading state — signed-in users' data arrives async; don't flash
+          empty states or the getting-started banner over real data */}
+      {isLoading && (
+        <div className="mb-8 flex items-center gap-3 text-gray-600 dark:text-gray-400">
+          <div className="w-5 h-5 border-2 border-gray-300 border-t-northeastern-red rounded-full animate-spin" />
+          Loading your data…
+        </div>
+      )}
+
       {/* Getting Started Banner */}
-      {showGettingStarted && data.jobs.length === 0 && (
+      {!isLoading && showGettingStarted && data.jobs.length === 0 && (
         <GettingStartedBanner
           onDismiss={handleDismissGettingStarted}
           onLoadSample={() => {
@@ -131,8 +149,8 @@ export default function DashboardPage() {
               Applications
             </h2>
             <div className="flex flex-wrap gap-2">
-              {/* Only show Sample Data button when user has no data */}
-              {data.jobs.length === 0 && (
+              {/* Only show Sample Data button when user has no data (and it's loaded) */}
+              {!isLoading && data.jobs.length === 0 && (
                 <Button
                   variant="secondary"
                   size="sm"

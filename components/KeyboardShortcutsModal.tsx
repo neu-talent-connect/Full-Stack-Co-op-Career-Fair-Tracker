@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { X, Keyboard } from 'lucide-react';
 import { KeyboardShortcut } from '@/hooks/useKeyboardShortcuts';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface KeyboardShortcutsModalProps {
   shortcuts: KeyboardShortcut[];
@@ -11,6 +12,8 @@ interface KeyboardShortcutsModalProps {
 }
 
 export function KeyboardShortcutsModal({ shortcuts, onClose }: KeyboardShortcutsModalProps) {
+  useEscapeKey(onClose);
+
   const groupedShortcuts = shortcuts.reduce((acc, shortcut) => {
     if (!acc[shortcut.category]) {
       acc[shortcut.category] = [];
@@ -32,7 +35,12 @@ export function KeyboardShortcutsModal({ shortcuts, onClose }: KeyboardShortcuts
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Keyboard Shortcuts"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+    >
       <Card className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           {/* Header */}

@@ -20,14 +20,19 @@ export default function CompaniesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name) return;
 
-    if (editingId) {
-      updateCompany(editingId, formData);
-    } else {
-      addCompany(formData as any);
+    try {
+      if (editingId) {
+        await updateCompany(editingId, formData);
+      } else {
+        await addCompany(formData as any);
+      }
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
     }
     setFormData(EMPTY_FORM);
     setEditingId(null);

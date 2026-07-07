@@ -14,7 +14,7 @@ import { WelcomeModal } from '@/components/onboarding/WelcomeModal';
 import { GettingStartedBanner } from '@/components/onboarding/GettingStartedBanner';
 
 export default function SpreadsheetPage() {
-  const { data, updateJob, deleteJob, addJob, loadSampleData } = useAppData();
+  const { data, updateJob, deleteJob, addJob, loadSampleData, isLoading } = useAppData();
   const [filters, setFilters] = useState<DashboardFilters>({});
   const [showFilters, setShowFilters] = useState(false);
   const [showAddPanel, setShowAddPanel] = useState(false);
@@ -29,17 +29,19 @@ export default function SpreadsheetPage() {
     return false;
   });
 
-  // Check if first time user
+  // Check if first time user — wait for data to load so a signed-in user's
+  // real data doesn't briefly read as "no data"
   useEffect(() => {
+    if (isLoading) return;
     const hasSeenWelcome = localStorage.getItem('hasSeenWelcome');
     const hasData = data.jobs.length > 0;
-    
+
     if (!hasSeenWelcome) {
       setShowWelcome(true);
     } else if (!hasData) {
       setShowGettingStarted(true);
     }
-  }, [data.jobs.length]);
+  }, [data.jobs.length, isLoading]);
 
   const handleWelcomeClose = () => {
     setShowWelcome(false);
@@ -77,8 +79,10 @@ export default function SpreadsheetPage() {
     setFilters({});
   };
 
-  const handleAddJob = (jobData: any) => {
-    addJob(jobData);
+  const handleAddJob = async (jobData: any) => {
+    // Let a failed add reject so AddJobPanel keeps the user's input;
+    // only close the panel once the add actually succeeded.
+    await addJob(jobData);
     setShowAddPanel(false);
   };
 
@@ -100,19 +104,26 @@ export default function SpreadsheetPage() {
   };
 
   const handleLoadSampleData = () => {
-    // Safety check: if user has data, show confirmation
-    if (data.jobs.length > 0 || data.companies.length > 0 || data.contacts.length > 0) {
+    if (isLoading) return;
+    // Safety check: if the user has ANY data, confirm before adding samples
+    const hasData =
+      data.jobs.length > 0 ||
+      data.companies.length > 0 ||
+      data.contacts.length > 0 ||
+      data.followups.length > 0 ||
+      data.interviews.length > 0 ||
+      (data.researchContacts ?? []).length > 0;
+    if (hasData) {
       const confirmed = window.confirm(
-        '⚠️ WARNING: This will REPLACE all your current data with sample data.\n\n' +
-        'All your applications, companies, and contacts will be lost.\n\n' +
-        'Are you absolutely sure you want to continue?'
+        'This will add sample data alongside your existing data.\n\n' +
+        'Continue?'
       );
-      
+
       if (!confirmed) {
         return;
       }
     }
-    
+
     loadSampleData();
   };
 

@@ -24,11 +24,16 @@ export default function ApplicationsPage() {
     coverLetter: 'None',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.company || !formData.title) return;
-    
-    addJob(formData as any);
+
+    try {
+      await addJob(formData as any);
+    } catch {
+      // Provider already shows an error toast; keep the form populated
+      return;
+    }
     setFormData({
       status: 'Not Started',
       interest: 3,

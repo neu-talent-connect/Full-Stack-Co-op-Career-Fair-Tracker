@@ -12,6 +12,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { AutocompleteInput } from '@/components/ui/AutocompleteInput';
 import { usePositionSuggestions } from '@/hooks/usePositionSuggestions';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { getTodayDate } from '@/lib/utils';
 
 interface SpreadsheetTableProps {
@@ -51,6 +52,10 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
   const startWidthRef = useRef<number>(250);
   const { positions, addPosition } = usePositionSuggestions();
 
+  // Close modals on Escape
+  useEscapeKey(() => setEditingContact(null), !!editingContact);
+  useEscapeKey(() => setEditingJob(null), !!editingJob);
+
   // Load saved column width from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('notesColumnWidth');
@@ -86,7 +91,9 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
   const handleDropdownChange = (value: string) => {
     setEditValue(value);
     if (editingCell) {
-      onUpdate(editingCell.id, { [editingCell.field]: value });
+      // Interest is numeric — saving the raw string breaks Number comparisons downstream
+      const parsedValue = editingCell.field === 'interest' ? Number(value) : value;
+      onUpdate(editingCell.id, { [editingCell.field]: parsedValue });
       setEditingCell(null);
     }
   };
@@ -98,6 +105,20 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
       setEditingCell(null);
     }
   };
+
+  // Shared props so editable cells work for keyboard users too
+  const editableCellProps = (startEdit: () => void) => ({
+    onClick: startEdit,
+    tabIndex: 0,
+    role: 'button',
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target !== e.currentTarget) return; // ignore keys from the inline editor
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        startEdit();
+      }
+    },
+  });
 
   // Contact editing handlers
   const handleContactClick = (id: string, job: Job) => {
@@ -412,73 +433,73 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
                   key={job.id} 
                   className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                 >
-                  <td 
+                  <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                    onClick={() => handleCellClick(job.id, 'interest', job.interest)}
+                    {...editableCellProps(() => handleCellClick(job.id, 'interest', job.interest))}
                   >
                     {renderCell(job, 'interest')}
                   </td>
-                  <td 
+                  <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer font-medium"
-                    onClick={() => handleCellClick(job.id, 'company', job.company)}
+                    {...editableCellProps(() => handleCellClick(job.id, 'company', job.company))}
                   >
                     {renderCell(job, 'company')}
                   </td>
-                  <td 
+                  <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                    onClick={() => handleCellClick(job.id, 'title', job.title)}
+                    {...editableCellProps(() => handleCellClick(job.id, 'title', job.title))}
                   >
                     {renderCell(job, 'title')}
                   </td>
-                  <td 
+                  <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                    onClick={() => handleContactClick(job.id, job)}
+                    {...editableCellProps(() => handleContactClick(job.id, job))}
                   >
                     {renderContactCell(job)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div
                       className="cursor-pointer"
-                      onClick={() => handleCellClick(job.id, 'status', job.status)}
+                      {...editableCellProps(() => handleCellClick(job.id, 'status', job.status))}
                     >
                       {renderCell(job, 'status')}
                     </div>
                   </td>
                   {showRecommendedFields && (
                     <>
-                      <td 
+                      <td
                         className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                        onClick={() => handleCellClick(job.id, 'location', job.location)}
+                        {...editableCellProps(() => handleCellClick(job.id, 'location', job.location))}
                       >
                         {renderCell(job, 'location')}
                       </td>
-                      <td 
+                      <td
                         className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                        onClick={() => handleCellClick(job.id, 'salary', job.salary)}
+                        {...editableCellProps(() => handleCellClick(job.id, 'salary', job.salary))}
                       >
                         {renderCell(job, 'salary')}
                       </td>
-                      <td 
+                      <td
                         className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                        onClick={() => handleCellClick(job.id, 'dateApplied', job.dateApplied)}
+                        {...editableCellProps(() => handleCellClick(job.id, 'dateApplied', job.dateApplied))}
                       >
                         {renderCell(job, 'dateApplied')}
                       </td>
                     </>
                   )}
-                  <td 
+                  <td
                     className="px-4 py-3 whitespace-nowrap cursor-pointer"
-                    onClick={() => handleCellClick(job.id, 'deadline', job.deadline)}
+                    {...editableCellProps(() => handleCellClick(job.id, 'deadline', job.deadline))}
                   >
                     {renderCell(job, 'deadline')}
                   </td>
-                  <td 
+                  <td
                     className="px-4 py-3 cursor-pointer"
-                    style={{ 
+                    style={{
                       width: `${notesColumnWidth}px`,
                       maxWidth: `${notesColumnWidth}px`,
                     }}
-                    onClick={() => handleCellClick(job.id, 'notes', job.notes)}
+                    {...editableCellProps(() => handleCellClick(job.id, 'notes', job.notes))}
                   >
                     <div className="overflow-hidden text-ellipsis">
                       {renderCell(job, 'notes')}
@@ -536,7 +557,12 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
 
       {/* Contact Edit Modal */}
       {editingContact && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Contact"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in"
+        >
           <Card className="w-full max-w-md">
             <div className="p-6">
               <div className="flex items-start justify-between mb-6">
@@ -619,7 +645,12 @@ export function SpreadsheetTable({ jobs, onUpdate, onDelete, onDuplicate, showRe
           />
 
           {/* Slide-in Panel */}
-          <div className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto animate-slide-in-right">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Edit Application"
+            className="fixed inset-y-0 right-0 w-full sm:w-[500px] bg-white dark:bg-gray-900 shadow-2xl z-50 overflow-y-auto animate-slide-in-right"
+          >
             <form onSubmit={handleJobEditSave} className="h-full flex flex-col">
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800">

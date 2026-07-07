@@ -6,6 +6,7 @@ import type { User } from '@supabase/supabase-js';
 import { Button } from '@/components/ui/Button';
 import { X, Upload, Trash2 } from 'lucide-react';
 import { AppData } from '@/types';
+import { notifyLocalStorageChange } from '@/hooks/useLocalStorage';
 
 const STORAGE_KEY = 'careerFairData';
 const MIGRATION_DISMISSED_KEY = 'migrationDismissed';
@@ -71,9 +72,10 @@ export function MigrateDataModal() {
     setIsMigrating(true);
     setError(null);
 
-    // Each entity is migrated record-by-record. Records that fail are kept in
-    // `remaining` so we (a) only clear what actually saved and (b) retrying
-    // re-sends only the failures — no duplicates.
+    // Each entity is migrated record-by-record, and localStorage is rewritten
+    // after EVERY successful POST — closing the tab mid-migration leaves only
+    // the not-yet-saved records behind, so a retry can't create duplicates.
+    // Jobs go first so interviews can reference their server-assigned ids.
     const entities: { key: keyof AppData; url: string; label: string }[] = [
       { key: 'jobs', url: '/api/jobs', label: 'jobs' },
       { key: 'contacts', url: '/api/contacts', label: 'contacts' },
@@ -83,35 +85,68 @@ export function MigrateDataModal() {
       { key: 'researchContacts', url: '/api/research', label: 'research contacts' },
     ];
 
-    const remaining: AppData = {
-      jobs: [],
-      contacts: [],
-      companies: [],
-      followups: [],
-      interviews: [],
-      researchContacts: [],
+    // Working copy: successfully saved records are removed as we go.
+    const pending: AppData = {
+      jobs: [...(localData.jobs ?? [])],
+      contacts: [...(localData.contacts ?? [])],
+      companies: [...(localData.companies ?? [])],
+      followups: [...(localData.followups ?? [])],
+      interviews: [...(localData.interviews ?? [])],
+      researchContacts: [...(localData.researchContacts ?? [])],
     };
     const failures: string[] = [];
+    // Guest job id -> server-assigned id, for remapping interview.jobId.
+    const jobIdMap = new Map<string, string>();
+
+    const persistPending = () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pending));
+      // Same-tab write: keep the provider's useLocalStorage state in sync so a
+      // later guest edit can't write the stale pre-migration snapshot back.
+      notifyLocalStorageChange(STORAGE_KEY);
+    };
 
     try {
       for (const { key, url, label } of entities) {
-        const items = (localData[key] ?? []) as unknown[];
+        const items = [...(pending[key] as { id?: string; jobId?: string }[])];
         let failed = 0;
 
         for (const item of items) {
+          // Interviews reference a job by id; the migrated job has a new
+          // server id. If the job itself hasn't migrated yet, defer the
+          // interview to the next retry instead of saving a dangling id.
+          let body: Record<string, unknown> = item;
+          if (key === 'interviews' && item.jobId) {
+            const mappedId = jobIdMap.get(item.jobId);
+            if (!mappedId && pending.jobs.some(j => j.id === item.jobId)) {
+              failed++;
+              continue;
+            }
+            body = { ...item, jobId: mappedId ?? item.jobId };
+          }
+
           let ok = false;
+          let created: { id?: string } | null = null;
           try {
             const res = await fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(item),
+              body: JSON.stringify(body),
             });
             ok = res.ok;
+            if (ok) created = await res.json().catch(() => null);
           } catch {
             ok = false;
           }
-          if (!ok) {
-            (remaining[key] as unknown[]).push(item);
+
+          if (ok) {
+            if (key === 'jobs' && item.id && created?.id) {
+              jobIdMap.set(item.id, created.id);
+            }
+            const arr = pending[key] as unknown[];
+            const idx = arr.indexOf(item);
+            if (idx !== -1) arr.splice(idx, 1);
+            persistPending();
+          } else {
             failed++;
           }
         }
@@ -120,14 +155,14 @@ export function MigrateDataModal() {
       }
 
       const anyRemaining = entities.some(
-        (e) => (remaining[e.key] as unknown[]).length > 0
+        (e) => (pending[e.key] as unknown[]).length > 0
       );
 
       if (anyRemaining) {
-        // Partial success: persist only the unmigrated records and keep the
-        // modal open so the user can retry. Do NOT mark migration dismissed.
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
-        setLocalData(remaining);
+        // Partial success: localStorage already holds only the unmigrated
+        // records; keep the modal open so the user can retry. Do NOT mark
+        // migration dismissed.
+        setLocalData({ ...pending });
         setError(
           `Saved everything except: ${failures.join(', ')}. These are still stored on this device — please try again.`
         );
@@ -135,6 +170,7 @@ export function MigrateDataModal() {
         // Full success: everything is in the account now.
         localStorage.removeItem(STORAGE_KEY);
         localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
+        notifyLocalStorageChange(STORAGE_KEY);
         setShowModal(false);
         window.location.reload(); // Reload to fetch from API
       }
@@ -159,6 +195,9 @@ export function MigrateDataModal() {
     }
     localStorage.removeItem(STORAGE_KEY);
     localStorage.setItem(MIGRATION_DISMISSED_KEY, 'true');
+    // Sync the provider's in-memory guest snapshot, otherwise its next write
+    // would resurrect the discarded data.
+    notifyLocalStorageChange(STORAGE_KEY);
     setShowModal(false);
   };
 
@@ -173,11 +212,16 @@ export function MigrateDataModal() {
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-md w-full p-6">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="migrate-data-title"
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-md w-full p-6"
+      >
         {/* Header */}
         <div className="flex justify-between items-start mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h2 id="migrate-data-title" className="text-2xl font-bold text-gray-900 dark:text-white">
               Save Your Data?
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">

@@ -55,10 +55,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       
       {/* Toast Container */}
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
+      <div
+        role="status"
+        aria-live="polite"
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none"
+      >
         {toasts.map(toast => (
           <div
             key={toast.id}
+            role={toast.type === 'error' ? 'alert' : undefined}
             className="pointer-events-auto animate-slide-up bg-gray-900 dark:bg-gray-800 text-white rounded-lg shadow-2xl px-4 py-3 flex items-center gap-3 min-w-[300px] max-w-[500px]"
           >
             {/* Icon */}

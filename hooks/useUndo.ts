@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 
 export interface UndoItem {
-  type: 'job' | 'company' | 'contact' | 'followup' | 'interview';
+  type: 'job' | 'company' | 'contact' | 'followup' | 'interview' | 'research';
   data: any;
   deletedAt: string;
 }
@@ -57,12 +57,20 @@ export function useUndo() {
     localStorage.removeItem(STORAGE_KEY);
   };
 
+  // Clear the undo item only if it is the given deletion — used by toast UNDO
+  // buttons so a restored record can't be restored again via global undo,
+  // without discarding a newer deletion's undo entry.
+  const consumeIfMatches = (id: string) => {
+    setLastDeleted(prev => (prev && prev.data?.id === id ? null : prev));
+  };
+
   const canUndo = lastDeleted !== null;
 
   return {
     addToUndoStack,
     popFromUndoStack,
     clearUndoStack,
+    consumeIfMatches,
     canUndo,
     undoCount: lastDeleted ? 1 : 0,
   };

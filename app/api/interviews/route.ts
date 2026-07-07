@@ -39,6 +39,19 @@ export async function POST(request: Request) {
     const parsed = validateBody(interviewCreateSchema, body);
     if (!parsed.success) return parsed.response;
 
+    // A non-empty jobId must reference a job owned by this user.
+    if (parsed.data.jobId) {
+      const job = await prisma.job.findFirst({
+        where: { id: parsed.data.jobId, userId: user.id },
+      });
+      if (!job) {
+        return NextResponse.json(
+          { error: 'jobId does not match one of your jobs' },
+          { status: 400 }
+        );
+      }
+    }
+
     const interview = await prisma.interview.create({
       data: {
         ...parsed.data,

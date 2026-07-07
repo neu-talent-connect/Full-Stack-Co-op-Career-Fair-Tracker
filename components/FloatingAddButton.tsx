@@ -4,27 +4,16 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { AddJobPanel } from '@/components/AddJobPanel';
-import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 
 export function FloatingAddButton() {
   const { addJob } = useAppData();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Keyboard shortcut to toggle the add panel
-  useKeyboardShortcuts([
-    {
-      key: 'n',
-      ctrl: true,
-      description: 'Add new job',
-      action: () => setIsOpen(prev => !prev),
-      category: 'Actions',
-    },
-  ]);
-
-  const handleAddJob = (jobData: any) => {
-    addJob(jobData);
+  const handleAddJob = async (jobData: any) => {
+    // Throws on failure — AddJobPanel keeps the form populated
+    await addJob(jobData);
     setIsOpen(false);
-    
+
     // Show success animation
     const btn = document.getElementById('floating-add-btn');
     if (btn) {
@@ -42,13 +31,13 @@ export function FloatingAddButton() {
         className={`fixed bottom-6 right-6 z-30 w-14 h-14 bg-northeastern-red hover:bg-red-700 text-white rounded-full shadow-lg hover:shadow-xl transition-all flex items-center justify-center group ${
           isOpen ? 'rotate-45' : ''
         }`}
-        title="Add new application (Ctrl+N)"
+        title="Add new application"
       >
         <Plus className="w-6 h-6" />
-        
+
         {/* Tooltip */}
         <span className="absolute right-16 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-          Add Application (Ctrl+N)
+          Add Application
         </span>
       </button>
 
